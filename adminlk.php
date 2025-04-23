@@ -3,7 +3,7 @@
 $host = 'mysql';
 $dbname = 'watch_store';
 $username = 'root'; // Замените на ваше имя пользователя
-$password = 'rootе';     // Замените на ваш пароль
+$password = 'root';     // Замените на ваш пароль
 try {
     $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8", $username, $password);
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);

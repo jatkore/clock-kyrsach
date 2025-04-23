@@ -1,7 +1,7 @@
 <?php
 session_start();
 
-// Подключение к базе данных
+// Подключение к бд
 $host = 'mysql';
 $dbname = 'watch_store';
 $user = 'root';
