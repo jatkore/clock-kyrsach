@@ -59,6 +59,25 @@ try {
             $stmt->execute(['id' => $item['product_id']]);
         }
 
+
+
+        // После уменьшения количества товара и удаления из корзины:
+        foreach ($checkoutItems as $item) {
+            // Получаем цену товара
+            $stmt = $pdo->prepare("SELECT price FROM Product WHERE id = :id");
+            $stmt->execute(['id' => $item['product_id']]);
+            $price = $stmt->fetchColumn();
+
+            // Добавляем запись в таблицу Orders
+            $stmt = $pdo->prepare("INSERT INTO Orders (product_id, quantity, total_price) VALUES (:product_id, :quantity, :total_price)");
+            $stmt->execute([
+                'product_id' => $item['product_id'],
+                'quantity' => $item['cart_quantity'],
+                'total_price' => $price * $item['cart_quantity']
+            ]);
+        }
+
+
         // Удаляем товар из таблицы cart
         $stmt = $pdo->prepare("DELETE FROM cart WHERE id = :id");
         $stmt->execute(['id' => $item['id']]);
@@ -84,6 +103,8 @@ try {
     $pdo->rollBack();
     die("Ошибка при оформлении заказа: " . $e->getMessage());
 }
+
+
 
 ?>
 
