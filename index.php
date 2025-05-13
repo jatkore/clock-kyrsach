@@ -5,26 +5,24 @@ $host = 'mysql';
 $dbname = 'watch_store';
 $username = 'root'; // Замените на ваше имя пользователя
 $password = 'root'; // Замените на ваш пароль
-
 try {
     $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8", $username, $password);
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 } catch (PDOException $e) {
     die("Ошибка подключения к базе данных: " . $e->getMessage());
 }
-
 // Проверка авторизации
 $isAuthenticated = isset($_SESSION['user_id']);
-
-// Получение 3 новинок для отображения
-$newProductsStmt = $pdo->query("
-    SELECT id, name, brand_name, color_name, type_name, view_name, gender, price, image_path
-    FROM Product
-    ORDER BY id DESC 
-    LIMIT 3
+// Получение 7 самых часто покупаемых товаров
+$popularProductsStmt = $pdo->query("
+    SELECT p.id, p.name, p.brand_name, p.color_name, p.type_name, p.view_name, p.gender, p.price, p.image_path 
+    FROM Orders o 
+    JOIN Product p ON o.product_id = p.id 
+    GROUP BY p.id, p.name, p.brand_name, p.color_name, p.type_name, p.view_name, p.gender, p.price, p.image_path 
+    ORDER BY SUM(o.quantity) DESC 
+    LIMIT 7
 ");
-$newProducts = $newProductsStmt->fetchAll(PDO::FETCH_ASSOC);
-
+$popularProducts = $popularProductsStmt->fetchAll(PDO::FETCH_ASSOC);
 // Функция проверки наличия товара в корзине
 function isProductInCart($pdo, $userId, $productId) {
     if (!$userId) return false;
@@ -40,63 +38,92 @@ function isProductInCart($pdo, $userId, $productId) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Магазин Часов</title>
     <style>
-        /* Общие стили */
-        * {
-            box-sizing: border-box;
+        html {
+            scroll-behavior: smooth; /* Плавная прокрутка */
         }
+        /* Общие стили */
         body {
             font-family: Arial, sans-serif;
             margin: 0;
             padding: 0;
-            color: #333;
-            line-height: 1.6;
+            box-sizing: border-box;
         }
-
         header {
             background-color: #333;
             color: white;
-            padding: 15px 20px;
+            padding: 10px 20px;
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
         nav {
             display: flex;
-            gap: 20px;
+            gap: 15px;
         }
         nav a {
             color: white;
             text-decoration: none;
             font-size: 16px;
-            transition: opacity 0.3s;
         }
         nav a:hover {
-            opacity: 0.8;
+            text-decoration: underline;
         }
-
-        .auth-buttons button {
-            margin-left: 10px;
+        .search-container {
+            display: flex;
+            align-items: center;
         }
-
-        .cart-button, .login-button {
+        .search-input {
+            padding: 5px;
+            font-size: 16px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        .login-button {
             background-color: #4CAF50;
             color: white;
             border: none;
-            padding: 8px 12px;
-            font-size: 14px;
+            padding: 5px 10px;
+            font-size: 16px;
             border-radius: 5px;
             cursor: pointer;
         }
-        .cart-button:hover, .login-button:hover {
+        .login-button:hover {
             background-color: #45a049;
         }
-
-        /* Главный баннер */
+        /* Стили для кнопки корзины */
+        .cart-button {
+            background-color: #ff6f61;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        .cart-button:hover {
+            background-color: #e55039;
+        }
+        /* Стили для кнопки личного кабинета */
+        .account-button {
+            background-color: #4caf50;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        .account-button:hover {
+            background-color: #4caf50;
+        }
+        /* Секция главного баннера */
         .hero-section {
             text-align: center;
             background: url('https://via.placeholder.com/1920x400') no-repeat center center/cover;
             color: #000000;
-            padding: 120px 20px 100px;
+            padding: 100px 20px;
         }
         .hero-section h1 {
             font-size: 36px;
@@ -105,148 +132,66 @@ function isProductInCart($pdo, $userId, $productId) {
         .hero-section p {
             font-size: 18px;
         }
-
-        /* Преимущества */
-        .features-section {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: space-around;
-            padding: 40px 20px;
-            background-color: #fff;
+        /* Горизонтальная секция популярных товаров */
+        .popular-products-section {
+            padding: 20px;
+            overflow-x: auto;
+            white-space: nowrap;
         }
-        .feature {
-            flex: 1 1 250px;
-            max-width: 300px;
-            text-align: center;
-            margin: 15px;
-        }
-        .feature i {
-            font-size: 48px;
-            color: #ff6f61;
-            margin-bottom: 10px;
-        }
-        .feature h3 {
-            font-size: 18px;
-            margin-bottom: 10px;
-        }
-        .feature p {
-            font-size: 14px;
-            color: #666;
-        }
-
-        /* О нас */
-        .about-section {
-            padding: 40px 20px;
-            background-color: #f9f9f9;
-            text-align: center;
-        }
-        .about-section h2 {
-            font-size: 28px;
-            margin-bottom: 20px;
-        }
-        .about-section p {
-            max-width: 800px;
-            margin: 0 auto;
-            font-size: 16px;
-            line-height: 1.6;
-        }
-
-        /* Новинки */
-        .new-products-section {
-            padding: 40px 20px;
-            background-color: #fff;
-            text-align: center;
-        }
-        .products-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
-            margin-top: 20px;
-        }
-        .product-card-new {
+        .product-card {
+            display: inline-block;
+            width: 200px;
             background-color: #f9f9f9;
             border: 1px solid #ddd;
             border-radius: 5px;
             padding: 15px;
+            margin-right: 10px;
+            text-align: center;
             transition: transform 0.3s ease;
         }
-        .product-card-new:hover {
-            transform: scale(1.03);
+        .product-card:last-child {
+            margin-right: 0;
         }
-        .product-card-new img {
-            width: 100%;
+        .product-card img {
+            max-width: 100%;
             height: auto;
             border-radius: 5px;
         }
-        .product-card-new h3 {
-            font-size: 16px;
+        .product-card h3 {
             margin: 10px 0;
+            font-size: 16px;
         }
-        .product-card-new .price {
+        .product-card p {
+            font-size: 14px;
+            color: #666;
+        }
+        .product-card .price {
+            font-size: 18px;
             color: #4CAF50;
             font-weight: bold;
         }
-
-        /* Контакты */
-        .contact-section {
-            padding: 40px 20px;
+        .product-card:hover {
+            transform: scale(1.05);
+        }
+        /* Информационные секции с ID для якорей */
+        section[id] {
+            scroll-margin-top: 80px; /* Отступ сверху при скролле */
+        }
+        /* Информационная секция */
+        .info-section {
+            padding: 20px;
             background-color: #f4f4f4;
             text-align: center;
         }
-        .contact-section h2 {
-            font-size: 28px;
-            margin-bottom: 20px;
-        }
-        .contact-section p {
-            font-size: 16px;
-            color: #333;
-        }
-
-        /* Подписка */
-        .newsletter-section {
-            text-align: center;
-            padding: 40px 20px;
-            background-color: #eef7f5;
-            color: #333;
-        }
-        .newsletter-section h2 {
+        .info-section h2 {
             font-size: 24px;
-            margin-bottom: 10px;
-        }
-        .newsletter-section p {
-            font-size: 16px;
             margin-bottom: 20px;
         }
-        .subscribe-form input {
-            padding: 10px;
-            font-size: 14px;
-            width: 250px;
-            border: 1px solid #ccc;
-            border-radius: 5px;
-            margin-right: 10px;
+        .info-section p {
+            font-size: 16px;
+            line-height: 1.6;
         }
-        .subscribe-form button {
-            padding: 10px 15px;
-            background-color: #4CAF50;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-        }
-        .subscribe-form button:hover {
-            background-color: #45a049;
-        }
-
-        /* Футер */
-        footer {
-            background-color: #333;
-            color: white;
-            padding: 20px;
-            text-align: center;
-            font-size: 14px;
-        }
-
-        /* Модальное окно */
+        /* Модальное окно для авторизации */
         .modal {
             display: none;
             position: fixed;
@@ -311,58 +256,55 @@ function isProductInCart($pdo, $userId, $productId) {
     </style>
 </head>
 <body>
-
 <header>
     <!-- Левая часть с меню -->
     <nav>
-        <a href="#">Главная</a>
         <a href="catalog.php">Каталог</a>
-        <a href="#">О нас</a>
-        <a href="#">Контакты</a>
+        <a href="#about">О нас</a>
+        <a href="#contacts">Контакты</a>
     </nav>
-    <!-- Правая часть с кнопками входа -->
-    <div class="auth-buttons">
+    <!-- Правая часть с кнопками корзины и входа -->
+    <div>
         <?php if ($isAuthenticated): ?>
             <button class="cart-button" onclick="location.href='cart.php'">Корзина 🛒</button>
-            <button class="logout-button" onclick="location.href='logout.php'">Выйти</button>
+            <button class="account-button" onclick="location.href='lk.php'">Личный кабинет</button>
         <?php else: ?>
-            <button id="loginButton" class="login-button">Войти</button>
+            <button id="loginButton">Войти</button>
         <?php endif; ?>
     </div>
 </header>
-
 <!-- Главный баннер -->
 <section class="hero-section">
     <h1>Ищете идеальные часы?</h1>
-    <p>У нас есть широкий выбор на любой вкус и бюджет!</p>
+    <p style="color: #000000;">У нас есть широкий выбор на любой вкус и бюджет!</p>
 </section>
-
-<!-- Преимущества -->
-<section class="features-section">
-    <div class="feature">
-        <i>⏰</i>
-        <h3>Гарантия качества</h3>
-        <p>Все товары сертифицированы и имеют официальную гарантию.</p>
-    </div>
-    <div class="feature">
-        <i>🚚</i>
-        <h3>Быстрая доставка</h3>
-        <p>Доставляем заказы по всей России за 1–3 дня.</p>
-    </div>
-    <div class="feature">
-        <i>💳</i>
-        <h3>Удобная оплата</h3>
-        <p>Оплата наличными, картой или онлайн через сайт.</p>
-    </div>
-    <div class="feature">
-        <i>📞</i>
-        <h3>Поддержка 24/7</h3>
-        <p>Наши консультанты всегда готовы помочь вам.</p>
+<!-- Секция популярных товаров -->
+<section class="popular-products-section">
+    <h2 style="margin-bottom: 10px; text-align: center;">Наши товары</h2>
+    <div>
+        <?php if (!empty($popularProducts)): ?>
+            <?php foreach ($popularProducts as $product): ?>
+                <div class="product-card">
+                    <img src="uploads/<?= htmlspecialchars($product['image_path']) ?>" alt="<?= htmlspecialchars($product['name']) ?>">
+                    <h3><?= htmlspecialchars($product['name']) ?></h3>
+                    <p><strong>Бренд:</strong> <?= htmlspecialchars($product['brand_name']) ?></p>
+                    <p><strong>Цена:</strong> <?= number_format($product['price'], 2, '.', ' ') ?> ₽</p>
+                    <form method="POST" action="add_to_cart.php" onsubmit="return checkLogin(this)">
+                        <input type="hidden" name="product_id" value="<?= $product['id'] ?>">
+                        <button type="submit" class="login-button"
+                            <?= isProductInCart($pdo, $_SESSION['user_id'] ?? null, $product['id']) ? 'disabled title="Товар уже в корзине"' : '' ?>>
+                            <?= isProductInCart($pdo, $_SESSION['user_id'] ?? null, $product['id']) ? 'Добавлено' : 'Добавить в корзину' ?>
+                        </button>
+                    </form>
+                </div>
+            <?php endforeach; ?>
+        <?php else: ?>
+            <p style="text-align: center;">Товары пока не добавлены.</p>
+        <?php endif; ?>
     </div>
 </section>
-
 <!-- О нас -->
-<section class="about-section">
+<section id="about" class="info-section">
     <h2>О нашем магазине</h2>
     <p>
         Мы специализируемся на продаже высококачественных часов от ведущих мировых производителей.
@@ -370,40 +312,8 @@ function isProductInCart($pdo, $userId, $productId) {
         Каждый клиент получает индивидуальный подход и гарантию качества.
     </p>
 </section>
-
-<!-- Новинки -->
-<section class="new-products-section">
-    <h2>Новинки</h2>
-    <div class="products-grid">
-        <?php if (!empty($newProducts)): ?>
-            <?php foreach ($newProducts as $product): ?>
-                <div class="product-card-new">
-                    <img src="uploads/<?= htmlspecialchars($product['image_path']) ?>" alt="<?= htmlspecialchars($product['name']) ?>">
-                    <h3><?= htmlspecialchars($product['name']) ?></h3>
-                    <p><strong>Цена:</strong> <?= number_format($product['price'], 2, '.', ' ') ?> ₽</p>
-                    <form method="POST" action="add_to_cart.php" onsubmit="return checkLogin(this)">
-                        <input type="hidden" name="product_id" value="<?= $product['id'] ?>">
-                        <button type="submit" class="login-button"
-                            <?php if (isProductInCart($pdo, $_SESSION['user_id'] ?? null, $product['id'])): ?>
-                                disabled title="Товар уже в корзине"
-                            <?php endif; ?>>
-                            <?php if (isProductInCart($pdo, $_SESSION['user_id'] ?? null, $product['id'])): ?>
-                                Добавлено
-                            <?php else: ?>
-                                Добавить в корзину
-                            <?php endif; ?>
-                        </button>
-                    </form>
-                </div>
-            <?php endforeach; ?>
-        <?php else: ?>
-            <p style="text-align: center;">Пока нет новинок.</p>
-        <?php endif; ?>
-    </div>
-</section>
-
 <!-- Контакты -->
-<section class="contact-section">
+<section id="contacts" class="info-section">
     <h2>Свяжитесь с нами</h2>
     <p>
         По всем вопросам обращайтесь:<br>
@@ -412,23 +322,6 @@ function isProductInCart($pdo, $userId, $productId) {
         📍 Адрес: г. Москва, ул. Часовая, д. 5
     </p>
 </section>
-
-<!-- Подписка -->
-<section class="newsletter-section">
-    <h2>Подпишитесь на наши новости</h2>
-    <p>Получайте уведомления о новых коллекциях и скидках!</p>
-    <form class="subscribe-form">
-        <input type="email" placeholder="Введите ваш email" required>
-        <button type="submit">Подписаться</button>
-    </form>
-</section>
-
-<!-- Футер -->
-<footer>
-    &copy; 2025 Магазин Часов. Все права защищены.<br>
-    <small>г. Москва, ул. Часовая, д. 5 | Телефон: +7 (999) 123-45-67</small>
-</footer>
-
 <!-- Модальное окно для авторизации -->
 <div id="loginModal" class="modal">
     <div class="modal-content">
@@ -444,18 +337,15 @@ function isProductInCart($pdo, $userId, $productId) {
         <button type="button" onclick="closeLoginModal()" class="close-button">Закрыть</button>
     </div>
 </div>
-
 <script>
-    // Открытие модального окна
+    // Показать модальное окно
     document.getElementById('loginButton')?.addEventListener('click', function () {
         document.getElementById('loginModal').style.display = 'flex';
     });
-
-    // Закрытие модального окна
+    // Закрыть модальное окно
     function closeLoginModal() {
         document.getElementById('loginModal').style.display = 'none';
     }
-
     // Проверка авторизации перед добавлением товара в корзину
     function checkLogin(form) {
         <?php if (!$isAuthenticated): ?>
@@ -465,20 +355,17 @@ function isProductInCart($pdo, $userId, $productId) {
         <?php endif; ?>
         return true;
     }
-
     // После успешной авторизации перезагружаем страницу
     <?php if (isset($_SESSION['user_id'])): ?>
     sessionStorage.setItem('is_logged_in', 'true');
     <?php else: ?>
     sessionStorage.removeItem('is_logged_in');
     <?php endif; ?>
-
     function afterSuccessfulLogin() {
         sessionStorage.setItem('is_logged_in', 'true');
         closeLoginModal();
         location.reload();
     }
 </script>
-
 </body>
 </html>

@@ -336,15 +336,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_to_cart']) && iss
             font-size: 14px;
             margin-top: 10px;
         }
+
+        header nav a {
+            color: white;
+            text-decoration: none;
+            font-size: 16px;
+        }
+        header nav a:hover {
+            text-decoration: underline;
+        }
+
     </style>
 </head>
 <body>
 <header>
     <nav>
-        <a href="#">Главная</a>
-        <a href="#">Каталог</a>
-        <a href="#">О нас</a>
-        <a href="#">Контакты</a>
+        <a href="index.php">Главная</a>
+
     </nav>
     <div>
         <?php if (!isset($_SESSION['user_id'])): ?>
