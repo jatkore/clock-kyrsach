@@ -1,15 +1,42 @@
 <?php
+session_start();
+
+// Проверяем, авторизован ли пользователь
+if (!isset($_SESSION['user_id'])) {
+    header("Location: login.php");
+    exit;
+}
+
+// Проверяем, является ли пользователь администратором по email
+if ($_SESSION['email'] !== 'kea@vt2b.ru') {
+    header("Location: lk.php");
+    exit;
+}
+
 // Подключение к базе данных
 $host = 'mysql';
 $dbname = 'watch_store';
 $username = 'root'; // Замените на ваше имя пользователя
 $password = 'root';     // Замените на ваш пароль
+
 try {
     $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8", $username, $password);
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 } catch (PDOException $e) {
     die("Ошибка подключения к базе данных: " . $e->getMessage());
 }
+
+// Инициализация переменных для сообщений
+$successProduct = '';
+$errorProduct = '';
+$successBrand = '';
+$errorBrand = '';
+$successColor = '';
+$errorColor = '';
+$successType = '';
+$errorType = '';
+$successView = '';
+$errorView = '';
 
 // Получение списков брендов, цветов, типов и видов
 $brands = $pdo->query("SELECT * FROM Brand")->fetchAll(PDO::FETCH_ASSOC);
@@ -32,7 +59,7 @@ $topProductsStmt = $pdo->query("SELECT p.name, SUM(o.quantity) AS total_quantity
                                  LIMIT 3");
 $topProducts = $topProductsStmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Обработка отправленной формы для товаров
+// Обработка формы добавления товара
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_product'])) {
     $productName = $_POST['name'] ?? '';
     $brandName = $_POST['brand'] ?? '';
@@ -42,8 +69,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_product'])) {
     $gender = $_POST['gender'] ?? '';
     $price = $_POST['price'] ?? '';
     $quantity = $_POST['quantity'] ?? '';
-
     $imagePath = '';
+
     if (isset($_FILES['image']) && $_FILES['image']['error'] === UPLOAD_ERR_OK) {
         $uploadDir = 'uploads/';
         if (!is_dir($uploadDir)) {
@@ -82,7 +109,72 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_product'])) {
         }
     }
 }
+
+// Обработка формы добавления бренда
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_brand'])) {
+    $brandName = $_POST['brand_name'] ?? '';
+    if (empty($brandName)) {
+        $errorBrand = "Введите название бренда.";
+    } else {
+        try {
+            $stmt = $pdo->prepare("INSERT INTO Brand (name) VALUES (?)");
+            $stmt->execute([$brandName]);
+            $successBrand = "Бренд успешно добавлен!";
+        } catch (PDOException $e) {
+            $errorBrand = "Ошибка при добавлении бренда: " . $e->getMessage();
+        }
+    }
+}
+
+// Обработка формы добавления цвета
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_color'])) {
+    $colorName = $_POST['color_name'] ?? '';
+    if (empty($colorName)) {
+        $errorColor = "Введите название цвета.";
+    } else {
+        try {
+            $stmt = $pdo->prepare("INSERT INTO Color (name) VALUES (?)");
+            $stmt->execute([$colorName]);
+            $successColor = "Цвет успешно добавлен!";
+        } catch (PDOException $e) {
+            $errorColor = "Ошибка при добавлении цвета: " . $e->getMessage();
+        }
+    }
+}
+
+// Обработка формы добавления типа
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_type'])) {
+    $typeName = $_POST['type_name'] ?? '';
+    if (empty($typeName)) {
+        $errorType = "Введите название типа.";
+    } else {
+        try {
+            $stmt = $pdo->prepare("INSERT INTO Type (name) VALUES (?)");
+            $stmt->execute([$typeName]);
+            $successType = "Тип успешно добавлен!";
+        } catch (PDOException $e) {
+            $errorType = "Ошибка при добавлении типа: " . $e->getMessage();
+        }
+    }
+}
+
+// Обработка формы добавления вида
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_view'])) {
+    $viewName = $_POST['view_name'] ?? '';
+    if (empty($viewName)) {
+        $errorView = "Введите название вида.";
+    } else {
+        try {
+            $stmt = $pdo->prepare("INSERT INTO View (name) VALUES (?)");
+            $stmt->execute([$viewName]);
+            $successView = "Вид успешно добавлен!";
+        } catch (PDOException $e) {
+            $errorView = "Ошибка при добавлении вида: " . $e->getMessage();
+        }
+    }
+}
 ?>
+
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -234,11 +326,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_product'])) {
     </style>
 </head>
 <body>
+
 <header>
+
+    <nav>
+        <a href="index.php">Главная</a>
+
+    </nav>
     <h1>Личный Кабинет Администратора</h1>
-    <button class="logout-button">Выйти</button>
+    <button onclick="logout()" class="logout-button">Выйти</button>
 </header>
+
 <div class="container">
+
     <!-- Сайдбар с навигацией -->
     <div class="sidebar">
         <h3>Меню</h3>
@@ -251,8 +351,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_product'])) {
             <li><a href="#add-view">Добавление видов</a></li>
         </ul>
     </div>
+
     <!-- Основной контент -->
     <div class="content">
+
         <!-- Раздел "Количество продаж" -->
         <section id="sales" class="section active">
             <h2>Количество продаж</h2>
@@ -282,10 +384,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_product'])) {
         <!-- Раздел "Добавление товаров" -->
         <section id="add-product" class="section">
             <h2>Добавление товаров</h2>
-            <?php if (isset($successProduct)): ?>
+            <?php if (!empty($successProduct)): ?>
                 <div class="message success"><?= htmlspecialchars($successProduct) ?></div>
             <?php endif; ?>
-            <?php if (isset($errorProduct)): ?>
+            <?php if (!empty($errorProduct)): ?>
                 <div class="message error"><?= htmlspecialchars($errorProduct) ?></div>
             <?php endif; ?>
             <form method="POST" action="" class="add-product-form" enctype="multipart/form-data">
@@ -340,10 +442,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_product'])) {
         <!-- Раздел "Добавление брендов" -->
         <section id="add-brand" class="section">
             <h2>Добавление бренда</h2>
-            <?php if (isset($successBrand)): ?>
+            <?php if (!empty($successBrand)): ?>
                 <div class="message success"><?= htmlspecialchars($successBrand) ?></div>
             <?php endif; ?>
-            <?php if (isset($errorBrand)): ?>
+            <?php if (!empty($errorBrand)): ?>
                 <div class="message error"><?= htmlspecialchars($errorBrand) ?></div>
             <?php endif; ?>
             <form method="POST" action="" class="add-product-form">
@@ -357,10 +459,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_product'])) {
         <!-- Раздел "Добавление цветов" -->
         <section id="add-color" class="section">
             <h2>Добавление цвета</h2>
-            <?php if (isset($successColor)): ?>
+            <?php if (!empty($successColor)): ?>
                 <div class="message success"><?= htmlspecialchars($successColor) ?></div>
             <?php endif; ?>
-            <?php if (isset($errorColor)): ?>
+            <?php if (!empty($errorColor)): ?>
                 <div class="message error"><?= htmlspecialchars($errorColor) ?></div>
             <?php endif; ?>
             <form method="POST" action="" class="add-product-form">
@@ -374,10 +476,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_product'])) {
         <!-- Раздел "Добавление типов" -->
         <section id="add-type" class="section">
             <h2>Добавление типа</h2>
-            <?php if (isset($successType)): ?>
+            <?php if (!empty($successType)): ?>
                 <div class="message success"><?= htmlspecialchars($successType) ?></div>
             <?php endif; ?>
-            <?php if (isset($errorType)): ?>
+            <?php if (!empty($errorType)): ?>
                 <div class="message error"><?= htmlspecialchars($errorType) ?></div>
             <?php endif; ?>
             <form method="POST" action="" class="add-product-form">
@@ -391,10 +493,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_product'])) {
         <!-- Раздел "Добавление видов" -->
         <section id="add-view" class="section">
             <h2>Добавление вида</h2>
-            <?php if (isset($successView)): ?>
+            <?php if (!empty($successView)): ?>
                 <div class="message success"><?= htmlspecialchars($successView) ?></div>
             <?php endif; ?>
-            <?php if (isset($errorView)): ?>
+            <?php if (!empty($errorView)): ?>
                 <div class="message error"><?= htmlspecialchars($errorView) ?></div>
             <?php endif; ?>
             <form method="POST" action="" class="add-product-form">
@@ -404,8 +506,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_product'])) {
                 <button type="submit">Добавить вид</button>
             </form>
         </section>
+
     </div>
 </div>
+
 <script>
     // Переключение между разделами
     const sidebarLinks = document.querySelectorAll('.sidebar a');
@@ -429,6 +533,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_product'])) {
             document.getElementById(targetId).style.display = 'block';
         });
     });
+
+    function logout() {
+        // Уничтожаем сессию
+        fetch('logout.php', { method: 'POST' })
+            .then(response => {
+                if (response.ok) {
+                    window.location.href = 'login.php';
+                } else {
+                    alert('Ошибка выхода');
+                }
+            });
+    }
+
 </script>
+
 </body>
 </html>

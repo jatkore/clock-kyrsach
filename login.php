@@ -5,7 +5,7 @@ session_start();
 $host = 'mysql';
 $dbname = 'watch_store';
 $username = 'root'; // Замените на ваше имя пользователя
-$password = 'root';     // Замените на ваш пароль
+$password = 'root'; // Замените на ваш пароль
 
 try {
     $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8", $username, $password);
@@ -14,6 +14,17 @@ try {
     die("Ошибка подключения к базе данных: " . $e->getMessage());
 }
 
+// Если пользователь уже авторизован — редиректим его
+if (isset($_SESSION['user_id'])) {
+    if ($_SESSION['role'] === 'admin' || $_SESSION['email'] === 'kea@vt2b.ru') {
+        header("Location: adminlk.php");
+    } else {
+        header("Location: lk.php");
+    }
+    exit;
+}
+
+$error = '';
 // Обработка формы авторизации
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = $_POST['email'] ?? '';
@@ -23,7 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = "Пожалуйста, заполните все поля.";
     } else {
         try {
-            // Ищем пользователя по почте
+            // Ищем пользователя по email
             $stmt = $pdo->prepare("SELECT * FROM users WHERE email = ?");
             $stmt->execute([$email]);
             $user = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -31,12 +42,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($user && password_verify($password, $user['password_hash'])) {
                 // Успешная авторизация
                 $_SESSION['user_id'] = $user['id'];
-                $_SESSION['role'] = $user['role'];
+                $_SESSION['role'] = $user['role'] ?? 'user';
+                $_SESSION['email'] = $user['email'];
 
-                // Редирект на запрошенную страницу или на главную
-                $redirectUrl = $_SESSION['redirect_after_login'] ?? 'catalog.php';
-                unset($_SESSION['redirect_after_login']); // Удаляем URL из сессии
-                header("Location: $redirectUrl");
+                // Определяем, куда перенаправить
+                if ($user['email'] === 'kea@vt2b.ru' || $user['role'] === 'admin') {
+                    header("Location: adminlk.php");
+                } else {
+                    header("Location: lk.php");
+                }
                 exit;
             } else {
                 $error = "Неверная почта или пароль.";
@@ -46,19 +60,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 }
-
-// Если пользователь уже авторизован, перенаправляем его на каталог
-if (isset($_SESSION['user_id'])) {
-    header("Location: catalog.php");
-    exit;
-}
 ?>
 
 <!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Авторизация</title>
     <style>
         body {
@@ -121,9 +128,11 @@ if (isset($_SESSION['user_id'])) {
     </style>
 </head>
 <body>
+
 <div class="login-container">
     <h2>Авторизация</h2>
-    <?php if (isset($error)): ?>
+
+    <?php if (!empty($error)): ?>
         <div class="error-message"><?= htmlspecialchars($error) ?></div>
     <?php endif; ?>
 
@@ -135,7 +144,9 @@ if (isset($_SESSION['user_id'])) {
         <input type="password" id="password" name="password" required>
 
         <button type="submit">Войти</button>
+        <a href="index.php">Вернуться на главную</a>
     </form>
 </div>
+
 </body>
 </html>
