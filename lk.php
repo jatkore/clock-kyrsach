@@ -100,6 +100,7 @@ try {
             max-width: 1200px;
             margin: 20px auto;
             padding: 0 20px;
+            display: flex;
         }
 
         /* Сайдбар с навигацией */
@@ -210,6 +211,22 @@ try {
                 margin-bottom: 20px;
             }
         }
+
+        /* Редактируемые поля */
+        .editable {
+            display: inline-block;
+        }
+
+        input[type="text"], input[type="tel"], input[type="email"] {
+            display: none;
+            width: 100%;
+            margin-top: 5px;
+            padding: 5px;
+        }
+
+        button#editButton {
+            margin-right: 10px;
+        }
     </style>
 </head>
 <body>
@@ -251,7 +268,7 @@ try {
             <?php endif; ?>
 
             <div class="profile-avatar">
-                <img id="avatar" src="<?= !empty($user['avatar_path']) ? 'Avatars/' . htmlspecialchars($user['avatar_path']) : 'https://via.placeholder.com/100x100' ?>" alt="Аватар">
+                <img id="avatar" src="<?= !empty($user['avatar_path']) ? 'Avatars/' . htmlspecialchars($user['avatar_path']) : 'https://via.placeholder.com/100x100 ' ?>" alt="Аватар">
 
                 <!-- Форма для загрузки аватара -->
                 <form method="POST" action="" enctype="multipart/form-data">
@@ -261,9 +278,21 @@ try {
                 </form>
             </div>
 
-            <p><strong>ФИО:</strong> <span id="fullName"><?= htmlspecialchars($user['full_name']) ?></span></p>
-            <p><strong>Номер телефона:</strong> <span id="phone"><?= htmlspecialchars($user['phone']) ?></span></p>
-            <p><strong>Электронная почта:</strong> <span id="email"><?= htmlspecialchars($user['email']) ?></span></p>
+            <p><strong>ФИО:</strong>
+                <span class="editable" id="fullNameDisplay"><?= htmlspecialchars($user['full_name']) ?></span>
+                <input type="text" id="fullNameInput" value="<?= htmlspecialchars($user['full_name']) ?>">
+            </p>
+            <p><strong>Номер телефона:</strong>
+                <span class="editable" id="phoneDisplay"><?= htmlspecialchars($user['phone']) ?></span>
+                <input type="tel" id="phoneInput" value="<?= htmlspecialchars($user['phone']) ?>">
+            </p>
+            <p><strong>Email:</strong>
+                <span class="editable" id="emailDisplay"><?= htmlspecialchars($user['email']) ?></span>
+                <input type="email" id="emailInput" value="<?= htmlspecialchars($user['email']) ?>">
+            </p>
+
+            <button id="editButton">Редактировать</button>
+            <button id="saveButton" style="display: none;">Сохранить</button>
         </section>
 
         <!-- Блок "Сделанные заказы" -->
@@ -293,6 +322,63 @@ try {
             };
             reader.readAsDataURL(file);
         }
+    });
+
+    // Логика редактирования профиля
+    document.getElementById('editButton').addEventListener('click', function () {
+        document.getElementById('fullNameDisplay').style.display = 'none';
+        document.getElementById('phoneDisplay').style.display = 'none';
+        document.getElementById('emailDisplay').style.display = 'none';
+
+        document.getElementById('fullNameInput').style.display = 'block';
+        document.getElementById('phoneInput').style.display = 'block';
+        document.getElementById('emailInput').style.display = 'block';
+
+        this.style.display = 'none';
+        document.getElementById('saveButton').style.display = 'inline-block';
+    });
+
+    document.getElementById('saveButton').addEventListener('click', function (e) {
+        e.preventDefault();
+
+        const full_name = document.getElementById('fullNameInput').value.trim();
+        const phone = document.getElementById('phoneInput').value.trim();
+        const email = document.getElementById('emailInput').value.trim();
+
+        fetch('update_user.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ full_name, phone, email })
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Данные успешно обновлены');
+
+                    document.getElementById('fullNameDisplay').textContent = full_name;
+                    document.getElementById('phoneDisplay').textContent = phone;
+                    document.getElementById('emailDisplay').textContent = email;
+
+                    document.getElementById('fullNameDisplay').style.display = 'inline';
+                    document.getElementById('phoneDisplay').style.display = 'inline';
+                    document.getElementById('emailDisplay').style.display = 'inline';
+
+                    document.getElementById('fullNameInput').style.display = 'none';
+                    document.getElementById('phoneInput').style.display = 'none';
+                    document.getElementById('emailInput').style.display = 'none';
+
+                    document.getElementById('saveButton').style.display = 'none';
+                    document.getElementById('editButton').style.display = 'inline-block';
+                } else {
+                    alert('Ошибка при сохранении: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Ошибка:', error);
+                alert('Произошла ошибка при отправке запроса.');
+            });
     });
 </script>
 </body>
