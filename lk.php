@@ -28,29 +28,41 @@ try {
         exit;
     }
 
+    // Обработка сохранения изменений
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_profile'])) {
+        $full_name = $_POST['full_name'];
+        $phone = $_POST['phone'];
+        $email = $_POST['email'];
+
+        // Обновление профиля
+        $stmt = $pdo->prepare("UPDATE users SET full_name = ?, phone = ?, email = ? WHERE id = ?");
+        $stmt->execute([$full_name, $phone, $email, $_SESSION['user_id']]);
+        $user['full_name'] = $full_name;
+        $user['phone'] = $phone;
+        $user['email'] = $email;
+        $success = "Данные успешно обновлены!";
+    }
+
     // Обработка загрузки аватара
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['avatar'])) {
-        $uploadDir = 'Avatars/'; // Директория для хранения аватаров
+        $uploadDir = 'Avatars/';
         if (!is_dir($uploadDir)) {
-            mkdir($uploadDir, 0777, true); // Создаем директорию, если ее нет
+            mkdir($uploadDir, 0777, true);
         }
 
-        // Генерируем уникальное имя файла на основе почты пользователя
-        $emailSafe = str_replace(['@', '.'], ['-', '_'], $user['email']); // Очищаем почту от недопустимых символов
-        $fileExtension = pathinfo($_FILES['avatar']['name'], PATHINFO_EXTENSION); // Получаем расширение файла
-        $fileName = $emailSafe . '.' . strtolower($fileExtension); // Имя файла = почта + расширение
+        $emailSafe = str_replace(['@', '.'], ['-', '_'], $user['email']);
+        $fileExtension = pathinfo($_FILES['avatar']['name'], PATHINFO_EXTENSION);
+        $fileName = $emailSafe . '.' . strtolower($fileExtension);
         $filePath = $uploadDir . $fileName;
 
-        // Проверяем, существует ли уже файл с таким именем
         if (file_exists($filePath)) {
-            unlink($filePath); // Удаляем старый файл, если он существует
+            unlink($filePath);
         }
 
         if (move_uploaded_file($_FILES['avatar']['tmp_name'], $filePath)) {
-            // Сохраняем путь к файлу в базе данных
             $stmt = $pdo->prepare("UPDATE users SET avatar_path = ? WHERE id = ?");
             $stmt->execute([$fileName, $_SESSION['user_id']]);
-            $user['avatar_path'] = $fileName; // Обновляем данные пользователя
+            $user['avatar_path'] = $fileName;
             $success = "Аватар успешно загружен!";
         } else {
             $error = "Ошибка при загрузке аватара.";
@@ -70,50 +82,56 @@ try {
     <style>
         /* Общие стили */
         body {
-            font-family: Arial, sans-serif;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             margin: 0;
             padding: 0;
-            box-sizing: border-box;
+            background-color: #f9f9f9;
+            color: #333;
         }
 
         header {
-            background-color: #333;
+            background-color: #2c3e50;
             color: white;
-            padding: 10px 20px;
+            padding: 15px 30px;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }
 
         nav a {
             color: white;
             text-decoration: none;
-            margin-right: 15px;
+            margin-right: 20px;
             font-size: 16px;
+            transition: opacity 0.3s;
         }
 
         nav a:hover {
-            text-decoration: underline;
+            opacity: 0.8;
         }
 
         .container {
             max-width: 1200px;
-            margin: 20px auto;
+            margin: 30px auto;
             padding: 0 20px;
             display: flex;
+            gap: 20px;
         }
 
-        /* Сайдбар с навигацией */
+        /* Сайдбар */
         .sidebar {
-            flex: 0 0 200px;
-            margin-right: 20px;
-            background-color: #f4f4f4;
-            padding: 15px;
-            border-radius: 5px;
+            flex: 0 0 220px;
+            background-color: #ffffff;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
         }
 
         .sidebar h3 {
-            margin-bottom: 10px;
+            font-size: 18px;
+            margin-bottom: 15px;
+            color: #2c3e50;
         }
 
         .sidebar ul {
@@ -122,82 +140,137 @@ try {
         }
 
         .sidebar li {
-            margin-bottom: 5px;
+            margin-bottom: 10px;
         }
 
         .sidebar a {
-            color: #333;
+            color: #34495e;
             text-decoration: none;
-            font-size: 16px;
+            font-weight: 500;
+            display: block;
+            padding: 8px 12px;
+            border-radius: 6px;
+            transition: background-color 0.3s;
         }
 
-        .sidebar a:hover {
-            text-decoration: underline;
+        .sidebar a:hover,
+        .sidebar a.active {
+            background-color: #ecf0f1;
+            color: #2c3e50;
         }
 
         /* Основной контент */
         .content {
             flex: 1;
-        }
-
-        .profile-section {
             background-color: #fff;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            padding: 20px;
-            margin-bottom: 20px;
+            border-radius: 10px;
+            padding: 25px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
         }
 
         .profile-section h2 {
-            margin-bottom: 15px;
+            margin-top: 0;
+            font-size: 22px;
+            color: #2c3e50;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
         }
 
         .profile-avatar {
             display: flex;
             align-items: center;
-            margin-bottom: 15px;
+            margin-bottom: 20px;
         }
 
         .profile-avatar img {
-            width: 100px;
-            height: 100px;
+            width: 70px;
+            height: 70px;
             border-radius: 50%;
-            margin-right: 15px;
+            object-fit: cover;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.15);
         }
 
         .upload-button {
-            background-color: #4CAF50;
+            background-color: #3498db;
             color: white;
             border: none;
-            padding: 5px 10px;
+            padding: 8px 12px;
             font-size: 14px;
-            border-radius: 5px;
+            border-radius: 6px;
             cursor: pointer;
+            margin-left: 15px;
+            transition: background-color 0.3s;
         }
 
         .upload-button:hover {
-            background-color: #45a049;
+            background-color: #2980b9;
         }
 
-        .orders-section {
-            background-color: #fff;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            padding: 20px;
+        input[type="text"] {
+            width: 100%;
+            padding: 8px;
+            margin-top: 5px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            font-size: 14px;
         }
 
-        .order-item {
-            border-bottom: 1px solid #eee;
-            padding: 10px 0;
+        .buttons {
+            margin-top: 20px;
         }
 
-        .order-item:last-child {
-            border-bottom: none;
+        .btn {
+            background-color: #2ecc71;
+            color: white;
+            border: none;
+            padding: 10px 16px;
+            margin-right: 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
         }
 
-        .order-details {
-            display: flex;
-            justify-content: space-between;
+        .btn:hover {
+            background-color: #27ae60;
+        }
+
+        .message {
+            padding: 12px;
+            margin-bottom: 20px;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .editable {
+            display: none;
+        }
+
+        #editModeOn {
+            display: block;
+        }
+
+        #editModeOff {
+            display: block;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 5px;
+            margin-top: 5px;
         }
 
         /* Адаптивность */
@@ -206,27 +279,25 @@ try {
                 flex-direction: column;
             }
 
-            .sidebar {
-                flex: 1;
-                margin-bottom: 20px;
+            .profile-avatar img {
+                width: 60px;
+                height: 60px;
             }
-        }
 
-        /* Редактируемые поля */
-        .editable {
-            display: inline-block;
-        }
+            .editable-field {
+                display: none;
+                width: 100%;
+                padding: 8px;
+                margin-top: 5px;
+                border: 1px solid #ccc;
+                border-radius: 6px;
+                font-size: 14px;
+            }
 
-        input[type="text"], input[type="tel"], input[type="email"] {
-            display: none;
-            width: 100%;
-            margin-top: 5px;
-            padding: 5px;
-        }
 
-        button#editButton {
-            margin-right: 10px;
         }
+    </style>
+
     </style>
 </head>
 <body>
@@ -261,38 +332,41 @@ try {
 
             <?php if (isset($success)): ?>
                 <div class="message success"><?= htmlspecialchars($success) ?></div>
-            <?php endif; ?>
-
-            <?php if (isset($error)): ?>
+            <?php elseif (isset($error)): ?>
                 <div class="message error"><?= htmlspecialchars($error) ?></div>
             <?php endif; ?>
 
-            <div class="profile-avatar">
-                <img id="avatar" src="<?= !empty($user['avatar_path']) ? 'Avatars/' . htmlspecialchars($user['avatar_path']) : 'https://via.placeholder.com/100x100 ' ?>" alt="Аватар">
+            <form method="post" action="" enctype="multipart/form-data">
+                <div class="profile-avatar">
+                    <img id="avatar" src="<?= !empty($user['avatar_path']) ? 'Avatars/' . htmlspecialchars($user['avatar_path']) : 'https://via.placeholder.com/100x100 ' ?>" alt="Аватар">
 
-                <!-- Форма для загрузки аватара -->
-                <form method="POST" action="" enctype="multipart/form-data">
-                    <label for="upload-avatar" class="upload-button">Выбрать фото</label>
-                    <input type="file" id="upload-avatar" name="avatar" accept="image/*" required style="display: none;">
-                    <button type="submit">Загрузить аватар</button>
-                </form>
-            </div>
+                    <div id="avatar-upload" style="display: none;">
+                        <label for="upload-avatar" class="upload-button">Выбрать фото</label>
+                        <input type="file" id="upload-avatar" name="avatar" accept="image/*" style="display: none;">
+                        <small>После выбора файла он сразу загрузится</small>
+                    </div>
+                </div>
 
-            <p><strong>ФИО:</strong>
-                <span class="editable" id="fullNameDisplay"><?= htmlspecialchars($user['full_name']) ?></span>
-                <input type="text" id="fullNameInput" value="<?= htmlspecialchars($user['full_name']) ?>">
-            </p>
-            <p><strong>Номер телефона:</strong>
-                <span class="editable" id="phoneDisplay"><?= htmlspecialchars($user['phone']) ?></span>
-                <input type="tel" id="phoneInput" value="<?= htmlspecialchars($user['phone']) ?>">
-            </p>
-            <p><strong>Email:</strong>
-                <span class="editable" id="emailDisplay"><?= htmlspecialchars($user['email']) ?></span>
-                <input type="email" id="emailInput" value="<?= htmlspecialchars($user['email']) ?>">
-            </p>
+                <p><strong>ФИО:</strong><br>
+                    <span id="fullName"><?= htmlspecialchars($user['full_name']) ?></span>
+                    <input type="text" id="edit-fullName" name="full_name" value="<?= htmlspecialchars($user['full_name']) ?>" class="editable">
+                </p>
 
-            <button id="editButton">Редактировать</button>
-            <button id="saveButton" style="display: none;">Сохранить</button>
+                <p><strong>Номер телефона:</strong><br>
+                    <span id="phone"><?= htmlspecialchars($user['phone']) ?></span>
+                    <input type="text" id="edit-phone" name="phone" value="<?= htmlspecialchars($user['phone']) ?>" class="editable">
+                </p>
+
+                <p><strong>Email:</strong><br>
+                    <span id="email"><?= htmlspecialchars($user['email']) ?></span>
+                    <input type="text" id="edit-email" name="email" value="<?= htmlspecialchars($user['email']) ?>" class="editable">
+                </p>
+
+                <div class="buttons">
+                    <button type="button" id="editBtn" class="btn">Редактировать</button>
+                    <button type="submit" name="save_profile" id="saveBtn" class="btn" style="display:none;">Сохранить</button>
+                </div>
+            </form>
         </section>
 
         <!-- Блок "Сделанные заказы" -->
@@ -306,79 +380,21 @@ try {
 </div>
 
 <script>
-    // При клике на кнопку "Выбрать фото" открывается диалог выбора файла
-    document.querySelector('.upload-button').addEventListener('click', function (event) {
-        event.preventDefault(); // Предотвращаем отправку формы
-        document.getElementById('upload-avatar').click(); // Открываем диалог выбора файла
-    });
+    const editBtn = document.getElementById('editBtn');
+    const saveBtn = document.getElementById('saveBtn');
+    const fields = ['fullName', 'phone', 'email'];
+    const avatarUpload = document.getElementById('avatar-upload');
 
-    // При выборе файла показываем его превью (необязательно)
-    document.getElementById('upload-avatar').addEventListener('change', function (event) {
-        const file = event.target.files[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = function (e) {
-                document.getElementById('avatar').src = e.target.result; // Показываем превью выбранного файла
-            };
-            reader.readAsDataURL(file);
-        }
-    });
+    editBtn.addEventListener('click', () => {
+        // Переключение видимости полей
+        fields.forEach(id => {
+            document.getElementById(id).style.display = 'none';
+            document.getElementById('edit-' + id).style.display = 'block';
+        });
 
-    // Логика редактирования профиля
-    document.getElementById('editButton').addEventListener('click', function () {
-        document.getElementById('fullNameDisplay').style.display = 'none';
-        document.getElementById('phoneDisplay').style.display = 'none';
-        document.getElementById('emailDisplay').style.display = 'none';
-
-        document.getElementById('fullNameInput').style.display = 'block';
-        document.getElementById('phoneInput').style.display = 'block';
-        document.getElementById('emailInput').style.display = 'block';
-
-        this.style.display = 'none';
-        document.getElementById('saveButton').style.display = 'inline-block';
-    });
-
-    document.getElementById('saveButton').addEventListener('click', function (e) {
-        e.preventDefault();
-
-        const full_name = document.getElementById('fullNameInput').value.trim();
-        const phone = document.getElementById('phoneInput').value.trim();
-        const email = document.getElementById('emailInput').value.trim();
-
-        fetch('update_user.php', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ full_name, phone, email })
-        })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    alert('Данные успешно обновлены');
-
-                    document.getElementById('fullNameDisplay').textContent = full_name;
-                    document.getElementById('phoneDisplay').textContent = phone;
-                    document.getElementById('emailDisplay').textContent = email;
-
-                    document.getElementById('fullNameDisplay').style.display = 'inline';
-                    document.getElementById('phoneDisplay').style.display = 'inline';
-                    document.getElementById('emailDisplay').style.display = 'inline';
-
-                    document.getElementById('fullNameInput').style.display = 'none';
-                    document.getElementById('phoneInput').style.display = 'none';
-                    document.getElementById('emailInput').style.display = 'none';
-
-                    document.getElementById('saveButton').style.display = 'none';
-                    document.getElementById('editButton').style.display = 'inline-block';
-                } else {
-                    alert('Ошибка при сохранении: ' + data.message);
-                }
-            })
-            .catch(error => {
-                console.error('Ошибка:', error);
-                alert('Произошла ошибка при отправке запроса.');
-            });
+        avatarUpload.style.display = 'block';
+        saveBtn.style.display = 'inline-block';
+        editBtn.style.display = 'none';
     });
 </script>
 </body>
