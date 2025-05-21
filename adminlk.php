@@ -24,6 +24,17 @@ try {
     die("Ошибка подключения к базе данных: " . $e->getMessage());
 }
 
+
+$isAuthenticated = isset($_SESSION['user_id']);
+
+// Обработка выхода из системы
+if (isset($_GET['logout'])) {
+    session_unset();
+    session_destroy();
+    header("Location: index.php");
+    exit();
+}
+
 // Инициализация переменных для сообщений
 $successProduct = '';
 $errorProduct = '';
@@ -269,6 +280,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_view'])) {
             width: 100%;
         }
 
+        .icon-btn {
+            background: none;
+            border: none;
+            color: var(--text-dark);
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .icon-btn:hover {
+            color: var(--black);
+            transform: translateY(-2px);
+        }
+
         .logout-button {
             background: var(--black);
             color: var(--white);
@@ -495,10 +520,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_view'])) {
         <a href="index.php">Главная</a>
         <a href="catalog.php">Каталог</a>
     </nav>
-    <button onclick="logout()" class="logout-button">
-        <i class="fas fa-sign-out-alt"></i>
-        <span>Выйти</span>
-    </button>
+    <div class="header-actions">
+        <?php if ($isAuthenticated): ?>
+
+                </button>
+            </div>
+            <button class="icon-btn" onclick="location.href='?logout=1'"><i class="fas fa-sign-out-alt"></i></button>
+
+        <?php else: ?>
+            <button class="icon-btn" id="loginButton"><i class="far fa-user"></i></button>
+        <?php endif; ?>
+    </div>
 </header>
 
 <div class="admin-container">

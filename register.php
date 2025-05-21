@@ -13,13 +13,15 @@ try {
 }
 
 // Обработка формы регистрации
+$error = '';
+$success = '';
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $fullName = $_POST['full_name'] ?? '';
     $email = $_POST['email'] ?? '';
     $phone = $_POST['phone'] ?? '';
     $password = $_POST['password'] ?? '';
 
-    // Валидация данных
     if (empty($fullName) || empty($email) || empty($phone) || empty($password)) {
         $error = "Пожалуйста, заполните все поля.";
     } else {
@@ -34,7 +36,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $passwordHash = password_hash($password, PASSWORD_BCRYPT);
 
                 // Определяем роль пользователя
-                $role = ($email === 'admin@clock.ru') ? 'admin' : 'user';
+                $role = ($email === 'kea@vt2b.ru') ? 'admin' : 'user';
 
                 // Добавляем пользователя в базу данных
                 $stmt = $pdo->prepare("INSERT INTO users (full_name, email, phone, password_hash, role) VALUES (?, ?, ?, ?, ?)");
@@ -53,88 +55,158 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Регистрация</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css ">
     <style>
+        :root {
+            --black: #111111;
+            --white: #ffffff;
+            --gray: #e0e0e0;
+            --light-gray: #f5f5f5;
+            --accent: #000000;
+            --text-dark: #333333;
+            --text-light: #777777;
+            --transition: all 0.3s cubic-bezier(0.25, 0.1, 0.25, 1);
+            --error: #e74c3c;
+        }
+
         body {
-            font-family: Arial, sans-serif;
-            margin: 20px;
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: var(--light-gray);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .login-wrapper {
+            position: relative;
+            width: 100%;
+            max-width: 400px;
+            margin: 4rem auto;
+            padding: 2rem;
+            background-color: var(--white);
+            border-radius: 8px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+
+        .login-wrapper h2 {
+            font-size: 1.8rem;
+            font-weight: 300;
+            text-align: center;
+            margin-bottom: 2rem;
+            color: var(--black);
         }
 
         form {
-            max-width: 400px;
-            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
         }
 
         label {
             display: block;
-            margin-bottom: 5px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+            color: var(--text-dark);
         }
 
-        input, button {
-            width: 100%;
-            padding: 10px;
-            margin-bottom: 15px;
-            border: 1px solid #ccc;
-            border-radius: 5px;
+        input[type="email"],
+        input[type="password"],
+        input[type="text"],
+        input[type="tel"] {
+            width: 95%;
+            padding: 0.8rem;
+            border: 1px solid var(--gray);
+            border-radius: 4px;
+            font-size: 0.95rem;
+            transition: var(--transition);
+        }
+
+        input:focus {
+            outline: none;
+            border-color: var(--black);
         }
 
         button {
-            background-color: #4CAF50;
-            color: white;
+            background-color: var(--black);
+            color: var(--white);
             border: none;
+            padding: 0.9rem;
+            font-size: 1rem;
+            font-weight: 500;
+            border-radius: 4px;
             cursor: pointer;
+            transition: var(--transition);
         }
 
         button:hover {
-            background-color: #45a049;
+            background-color: #333333;
         }
 
-        .message {
+        a.back-link {
+            display: block;
             text-align: center;
-            padding: 10px;
-            border-radius: 5px;
-            margin-bottom: 15px;
+            margin-top: 1rem;
+            color: var(--text-light);
+            font-size: 0.9rem;
+            text-decoration: none;
+            transition: var(--transition);
         }
 
-        .success {
-            background-color: #d4edda;
-            color: #155724;
+        a.back-link:hover {
+            color: var(--black);
         }
 
-        .error {
-            background-color: #f8d7da;
-            color: #721c24;
+        .error-message {
+            color: var(--error);
+            font-size: 0.85rem;
+            text-align: center;
+            margin-top: -1rem;
         }
+
+        footer {
+            margin-top: 3rem;
+            text-align: center;
+            color: var(--text-light);
+            font-size: 0.8rem;
+        }
+
     </style>
 </head>
 <body>
-<h1>Регистрация</h1>
 
-<?php if (isset($success)): ?>
-    <div class="message success"><?= htmlspecialchars($success) ?></div>
-<?php endif; ?>
+<div class="login-wrapper">
+    <h2>Регистрация</h2>
 
-<?php if (isset($error)): ?>
-    <div class="message error"><?= htmlspecialchars($error) ?></div>
-<?php endif; ?>
+    <?php if (!empty($success)): ?>
+        <div class="message success"><?= htmlspecialchars($success) ?></div>
+    <?php elseif (!empty($error)): ?>
+        <div class="message error"><?= htmlspecialchars($error) ?></div>
+    <?php endif; ?>
 
-<form method="POST" action="">
-    <label for="full_name">ФИО:</label>
-    <input type="text" id="full_name" name="full_name" required>
+    <form method="POST" action="">
+        <label for="full_name">ФИО:</label>
+        <input type="text" id="full_name" name="full_name" required>
 
-    <label for="email">Почта:</label>
-    <input type="email" id="email" name="email" required>
+        <label for="email">Email:</label>
+        <input type="email" id="email" name="email" required>
 
-    <label for="phone">Номер телефона:</label>
-    <input type="tel" id="phone" name="phone" required>
+        <label for="phone">Телефон:</label>
+        <input type="tel" id="phone" name="phone" required>
 
-    <label for="password">Пароль:</label>
-    <input type="password" id="password" name="password" required>
+        <label for="password">Пароль:</label>
+        <input type="password" id="password" name="password" required>
 
-    <button type="submit">Зарегистрироваться</button>
-</form>
+        <button type="submit">Зарегистрироваться</button>
+    </form>
 
-<p>Уже есть аккаунт? <a href="login.php">Войти</a></p>
+    <a href="login.php" class="back-link">← Уже есть аккаунт? Войти</a>
+</div>
+
+
 </body>
 </html>

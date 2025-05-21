@@ -67,69 +67,127 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <title>Авторизация</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css ">
     <style>
+        :root {
+            --black: #111111;
+            --white: #ffffff;
+            --gray: #e0e0e0;
+            --light-gray: #f5f5f5;
+            --accent: #000000;
+            --text-dark: #333333;
+            --text-light: #777777;
+            --transition: all 0.3s cubic-bezier(0.25, 0.1, 0.25, 1);
+            --error: #e74c3c;
+        }
+
         body {
-            font-family: Arial, sans-serif;
+            font-family: 'Helvetica Neue', Arial, sans-serif;
             margin: 0;
             padding: 0;
-            box-sizing: border-box;
+            background-color: var(--light-gray);
             display: flex;
             justify-content: center;
             align-items: center;
-            height: 100vh;
-            background-color: #f4f4f4;
+            min-height: 100vh;
         }
 
-        .login-container {
-            background-color: #fff;
-            padding: 20px;
-            border-radius: 5px;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-            width: 300px;
+        .login-wrapper {
+            position: relative;
+            width: 100%;
+            max-width: 400px;
+            margin: 4rem auto;
+            padding: 2rem;
+            background-color: var(--white);
+            border-radius: 8px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+
+        .login-wrapper h2 {
+            font-size: 1.8rem;
+            font-weight: 300;
             text-align: center;
+            margin-bottom: 2rem;
+            color: var(--black);
         }
 
-        .login-container h2 {
-            margin-bottom: 15px;
-            font-size: 20px;
-        }
-
-        .login-container form {
+        form {
             display: flex;
             flex-direction: column;
-            gap: 10px;
+            gap: 1.5rem;
         }
 
-        .login-container input {
-            padding: 10px;
-            border: 1px solid #ccc;
-            border-radius: 5px;
+        label {
+            display: block;
+            font-size: 0.9rem;
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+            color: var(--text-dark);
         }
 
-        .login-container button {
-            padding: 10px;
+        input[type="email"],
+        input[type="password"] {
+            width: 95%;
+            padding: 0.8rem;
+            border: 1px solid var(--gray);
+            border-radius: 4px;
+            font-size: 0.95rem;
+            transition: var(--transition);
+        }
+
+        input:focus {
+            outline: none;
+            border-color: var(--black);
+        }
+
+        button {
+            background-color: var(--black);
+            color: var(--white);
             border: none;
-            border-radius: 5px;
-            font-size: 16px;
+            padding: 0.9rem;
+            font-size: 1rem;
+            font-weight: 500;
+            border-radius: 4px;
             cursor: pointer;
-            background-color: #4CAF50;
-            color: white;
+            transition: var(--transition);
         }
 
-        .login-container button:hover {
-            background-color: #45a049;
+        button:hover {
+            background-color: #333333;
+        }
+
+        a.back-link {
+            display: block;
+            text-align: center;
+            margin-top: 1rem;
+            color: var(--text-light);
+            font-size: 0.9rem;
+            text-decoration: none;
+            transition: var(--transition);
+        }
+
+        a.back-link:hover {
+            color: var(--black);
         }
 
         .error-message {
-            color: red;
-            font-size: 14px;
-            margin-top: 10px;
+            color: var(--error);
+            font-size: 0.85rem;
+            text-align: center;
+            margin-top: -1rem;
+        }
+
+        footer {
+            margin-top: 3rem;
+            text-align: center;
+            color: var(--text-light);
+            font-size: 0.8rem;
         }
     </style>
 </head>
 <body>
 
-<div class="login-container">
+<div class="login-wrapper">
     <h2>Авторизация</h2>
 
     <?php if (!empty($error)): ?>
@@ -144,9 +202,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <input type="password" id="password" name="password" required>
 
         <button type="submit">Войти</button>
-        <a href="index.php">Вернуться на главную</a>
     </form>
+
+    <a href="register.php" class="back-link">Зарегистрироваться</a>
+    <a href="index.php" class="back-link">← Вернуться на главную</a>
+
 </div>
+
+
 
 </body>
 </html>

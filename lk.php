@@ -106,7 +106,7 @@ try {
         :root {
             --black: #111111;
             --white: #ffffff;
-            --gray: #e0e0e0;
+            --gray: #ffffff;
             --light-gray: #f5f5f5;
             --accent: #000000;
             --text-dark: #333333;
@@ -243,11 +243,20 @@ try {
             display: flex;
             margin-top: 80px;
             padding: 2rem 10%;
+            margin-left: 270px; /* Ширина .sidebar + небольшой отступ */
         }
 
         .sidebar {
             width: 250px;
-            margin-right: 2rem;
+            background-color: #f5f5f5; /* Серый фон */
+            padding: 1.5rem;
+            border-radius: 8px;
+            position: fixed; /* Фиксируем позицию */
+            top: 0;           /* От верхнего края */
+            left: 0%;         /* Где-то от левого края (можно изменить) */
+            height: 100vh;    /* Высота экрана */
+            overflow-y: auto; /* Возможность скролла внутри меню при длинном содержимом */
+            z-index: 999;     /* Чтобы поверх основного контента */
         }
 
         .sidebar h3 {
@@ -470,6 +479,7 @@ try {
     <div class="sidebar">
         <h3>Меню</h3>
         <ul>
+            <h3>Меню</h3>
             <li><a href="#profile" class="active">О себе</a></li>
             <li><a href="#orders">Заказы</a></li>
         </ul>
