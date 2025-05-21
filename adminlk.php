@@ -1,12 +1,10 @@
 <?php
 session_start();
-
 // Проверяем, авторизован ли пользователь
 if (!isset($_SESSION['user_id'])) {
     header("Location: login.php");
     exit;
 }
-
 // Проверяем, является ли пользователь администратором по email
 if ($_SESSION['email'] !== 'kea@vt2b.ru') {
     header("Location: lk.php");
@@ -16,8 +14,8 @@ if ($_SESSION['email'] !== 'kea@vt2b.ru') {
 // Подключение к базе данных
 $host = 'mysql';
 $dbname = 'watch_store';
-$username = 'root'; // Замените на ваше имя пользователя
-$password = 'root';     // Замените на ваш пароль
+$username = 'root';
+$password = 'root';
 
 try {
     $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8", $username, $password);
@@ -59,6 +57,8 @@ $topProductsStmt = $pdo->query("SELECT p.name, SUM(o.quantity) AS total_quantity
                                  LIMIT 3");
 $topProducts = $topProductsStmt->fetchAll(PDO::FETCH_ASSOC);
 
+// Обработка форм добавления
+#include 'admin_form_handlers.php'; // Здесь можно вынести обработчики POST-запросов
 // Обработка формы добавления товара
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_product'])) {
     $productName = $_POST['name'] ?? '';
@@ -174,153 +174,315 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_view'])) {
     }
 }
 ?>
-
 <!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Личный Кабинет Администратора</title>
+    <title>Личный Кабинет Администратора | Minimal Horizon</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
-        /* Общие стили */
-        body {
-            font-family: Arial, sans-serif;
+        :root {
+            --black: #111111;
+            --white: #ffffff;
+            --gray: #e0e0e0;
+            --light-gray: #f5f5f5;
+            --accent: #000000;
+            --text-dark: #333333;
+            --text-light: #777777;
+            --transition: all 0.3s cubic-bezier(0.25, 0.1, 0.25, 1);
+            --error: #e74c3c;
+            --success: #2ecc71;
+        }
+
+        * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
+
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            color: var(--text-dark);
+            background-color: var(--white);
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* Шапка */
         header {
-            background-color: #333;
-            color: white;
-            padding: 10px 20px;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            padding: 1.5rem 5%;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            background-color: var(--white);
+            z-index: 1000;
+            box-shadow: 0 1px 20px rgba(0, 0, 0, 0.03);
         }
-        nav a {
-            color: white;
-            text-decoration: none;
-            margin-right: 15px;
-            font-size: 16px;
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 300;
+            letter-spacing: 2px;
+            color: var(--black);
         }
-        nav a:hover {
-            text-decoration: underline;
+
+        .logo span {
+            font-weight: 600;
         }
-        .container {
-            max-width: 1200px;
-            margin: 20px auto;
-            padding: 0 20px;
+
+        nav {
             display: flex;
+            gap: 2rem;
         }
-        /* Сайдбар с навигацией */
+
+        nav a {
+            color: var(--text-dark);
+            text-decoration: none;
+            font-size: 0.9rem;
+            font-weight: 400;
+            letter-spacing: 1px;
+            transition: var(--transition);
+            position: relative;
+        }
+
+        nav a:hover {
+            color: var(--black);
+        }
+
+        nav a::after {
+            content: '';
+            position: absolute;
+            bottom: -5px;
+            left: 0;
+            width: 0;
+            height: 1px;
+            background: var(--black);
+            transition: var(--transition);
+        }
+
+        nav a:hover::after {
+            width: 100%;
+        }
+
+        .logout-button {
+            background: var(--black);
+            color: var(--white);
+            border: none;
+            padding: 0.8rem 1.5rem;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .logout-button:hover {
+            background: #333333;
+        }
+
+        /* Основной контейнер */
+        .admin-container {
+            display: flex;
+            min-height: calc(100vh - 80px);
+            margin-top: 80px;
+        }
+
+        /* Сайдбар */
         .sidebar {
-            flex: 0 0 200px;
-            margin-right: 20px;
-            background-color: #f4f4f4;
-            padding: 15px;
-            border-radius: 5px;
+            width: 250px;
+            background-color: var(--light-gray);
+            padding: 2rem 1rem;
+            border-right: 1px solid var(--gray);
         }
+
         .sidebar h3 {
-            margin-bottom: 10px;
+            font-size: 1.1rem;
+            font-weight: 500;
+            margin-bottom: 1.5rem;
+            padding-left: 0.5rem;
         }
+
         .sidebar ul {
             list-style: none;
-            padding: 0;
         }
+
         .sidebar li {
-            margin-bottom: 5px;
+            margin-bottom: 0.5rem;
         }
+
         .sidebar a {
-            color: #333;
-            text-decoration: none;
-            font-size: 16px;
-            padding: 5px 10px;
             display: block;
-            border-radius: 5px;
+            padding: 0.8rem 0.5rem;
+            color: var(--text-dark);
+            text-decoration: none;
+            font-size: 0.9rem;
+            border-radius: 4px;
+            transition: var(--transition);
         }
-        .sidebar a.active {
-            background-color: #4CAF50;
-            color: white;
+
+        .sidebar a:hover, .sidebar a.active {
+            background-color: var(--gray);
+            color: var(--black);
         }
-        .sidebar a:hover {
-            background-color: #ddd;
-            color: #333;
-        }
-        /* Основной контент */
+
+        /* Основное содержимое */
         .content {
             flex: 1;
+            padding: 2rem 3rem;
         }
+
         .section {
-            background-color: #fff;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            padding: 20px;
-            margin-bottom: 20px;
-            display: none; /* По умолчанию все разделы скрыты */
+            display: none;
+            margin-bottom: 3rem;
         }
+
         .section.active {
-            display: block; /* Показываем активный раздел */
+            display: block;
         }
-        .sales-info {
+
+        .section h2 {
+            font-size: 1.8rem;
+            font-weight: 300;
+            margin-bottom: 2rem;
+        }
+
+        /* Формы */
+        .admin-form {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+            color: var(--text-dark);
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 0.8rem;
+            border: 1px solid var(--gray);
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: var(--black);
+        }
+
+        .form-group .file-input {
+            padding: 0.5rem;
+        }
+
+        .submit-btn {
+            background: var(--black);
+            color: var(--white);
+            border: none;
+            padding: 1rem 2rem;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .submit-btn:hover {
+            background: #333333;
+        }
+
+        /* Сообщения */
+        .message {
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+
+        .message.success {
+            background-color: rgba(46, 204, 113, 0.2);
+            color: var(--success);
+            border: 1px solid var(--success);
+        }
+
+        .message.error {
+            background-color: rgba(231, 76, 60, 0.2);
+            color: var(--error);
+            border: 1px solid var(--error);
+        }
+
+        /* Статистика */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background-color: var(--light-gray);
+            padding: 1.5rem;
+            border-radius: 4px;
+            text-align: center;
+        }
+
+        .stat-card h3 {
+            font-size: 1rem;
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+            color: var(--text-light);
+        }
+
+        .stat-card p {
+            font-size: 1.5rem;
+            font-weight: 300;
+        }
+
+        .top-products {
+            margin-top: 2rem;
+        }
+
+        .top-products ul {
+            list-style: none;
+        }
+
+        .top-products li {
+            padding: 0.8rem 0;
+            border-bottom: 1px solid var(--gray);
             display: flex;
             justify-content: space-between;
-            align-items: center;
         }
-        .sales-info div {
-            flex: 1;
-            text-align: center;
-            padding: 10px;
-            border-right: 1px solid #ddd;
-        }
-        .sales-info div:last-child {
-            border-right: none;
-        }
-        .add-product-form {
-            display: flex;
-            flex-direction: column;
-        }
-        .add-product-form label {
-            margin-bottom: 5px;
-        }
-        .add-product-form input, .add-product-form select, .add-product-form button {
-            margin-bottom: 15px;
-            padding: 5px;
-            font-size: 14px;
-        }
-        .add-product-form button {
-            background-color: #4CAF50;
-            color: white;
-            border: none;
-            padding: 10px;
-            font-size: 16px;
-            border-radius: 5px;
-            cursor: pointer;
-        }
-        .add-product-form button:hover {
-            background-color: #45a049;
-        }
-        .message {
-            text-align: center;
-            padding: 10px;
-            border-radius: 5px;
-            margin-bottom: 15px;
-        }
-        .success {
-            background-color: #d4edda;
-            color: #155724;
-        }
-        .error {
-            background-color: #f8d7da;
-            color: #721c24;
-        }
+
         /* Адаптивность */
         @media (max-width: 768px) {
-            .container {
+            .admin-container {
                 flex-direction: column;
             }
+
             .sidebar {
-                flex: 1;
-                margin-bottom: 20px;
+                width: 100%;
+                border-right: none;
+                border-bottom: 1px solid var(--gray);
+            }
+
+            .content {
+                padding: 1.5rem;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr;
             }
         }
     </style>
@@ -328,185 +490,220 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_view'])) {
 <body>
 
 <header>
-
+    <div class="logo">MINIMAL <span>HORIZON</span></div>
     <nav>
         <a href="index.php">Главная</a>
-
+        <a href="catalog.php">Каталог</a>
     </nav>
-    <h1>Личный Кабинет Администратора</h1>
-    <button onclick="logout()" class="logout-button">Выйти</button>
+    <button onclick="logout()" class="logout-button">
+        <i class="fas fa-sign-out-alt"></i>
+        <span>Выйти</span>
+    </button>
 </header>
 
-<div class="container">
-
+<div class="admin-container">
     <!-- Сайдбар с навигацией -->
     <div class="sidebar">
-        <h3>Меню</h3>
+        <h3>Меню администратора</h3>
         <ul>
-            <li><a href="#sales" class="active">Количество продаж</a></li>
-            <li><a href="#add-product">Добавление товаров</a></li>
-            <li><a href="#add-brand">Добавление брендов</a></li>
-            <li><a href="#add-color">Добавление цветов</a></li>
-            <li><a href="#add-type">Добавление типов</a></li>
-            <li><a href="#add-view">Добавление видов</a></li>
+            <li><a href="#sales" class="active">Статистика продаж</a></li>
+            <li><a href="#add-product">Добавить товар</a></li>
+            <li><a href="#add-brand">Добавить бренд</a></li>
+            <li><a href="#add-color">Добавить цвет</a></li>
+            <li><a href="#add-type">Добавить тип</a></li>
+            <li><a href="#add-view">Добавить вид</a></li>
         </ul>
     </div>
 
     <!-- Основной контент -->
     <div class="content">
-
-        <!-- Раздел "Количество продаж" -->
+        <!-- Раздел "Статистика продаж" -->
         <section id="sales" class="section active">
-            <h2>Количество продаж</h2>
-            <div class="sales-info">
-                <div>
-                    <strong>Общая выручка:</strong><br>
-                    <span><?= htmlspecialchars($totalRevenue) ?> ₽</span>
+            <h2>Статистика продаж</h2>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <h3>Общая выручка</h3>
+                    <p><?= number_format($totalRevenue, 0, '.', ' ') ?> ₽</p>
                 </div>
-                <div>
-                    <strong>Количество заказов:</strong><br>
-                    <span><?= htmlspecialchars($orderCount) ?></span>
+                <div class="stat-card">
+                    <h3>Количество заказов</h3>
+                    <p><?= htmlspecialchars($orderCount) ?></p>
                 </div>
-                <div>
-                    <strong>Топ покупаемых товаров:</strong><br>
-                    <ul>
-                        <?php foreach ($topProducts as $product): ?>
-                            <li>
-                                <?= htmlspecialchars($product['name']) ?> -
-                                <?= htmlspecialchars($product['total_quantity']) ?> шт.
-                            </li>
-                        <?php endforeach; ?>
-                    </ul>
-                </div>
+            </div>
+
+            <div class="top-products">
+                <h3>Топ покупаемых товаров</h3>
+                <ul>
+                    <?php foreach ($topProducts as $product): ?>
+                        <li>
+                            <span><?= htmlspecialchars($product['name']) ?></span>
+                            <span><?= htmlspecialchars($product['total_quantity']) ?> шт.</span>
+                        </li>
+                    <?php endforeach; ?>
+                </ul>
             </div>
         </section>
 
         <!-- Раздел "Добавление товаров" -->
         <section id="add-product" class="section">
-            <h2>Добавление товаров</h2>
+            <h2>Добавить товар</h2>
             <?php if (!empty($successProduct)): ?>
                 <div class="message success"><?= htmlspecialchars($successProduct) ?></div>
             <?php endif; ?>
             <?php if (!empty($errorProduct)): ?>
                 <div class="message error"><?= htmlspecialchars($errorProduct) ?></div>
             <?php endif; ?>
-            <form method="POST" action="" class="add-product-form" enctype="multipart/form-data">
+            <form method="POST" action="" class="admin-form" enctype="multipart/form-data">
                 <input type="hidden" name="add_product">
-                <label for="product-name">Название:</label>
-                <input type="text" id="product-name" name="name" required>
-                <label for="product-brand">Бренд:</label>
-                <select id="product-brand" name="brand" required>
-                    <option value="" disabled selected>Выберите бренд</option>
-                    <?php foreach ($brands as $brand): ?>
-                        <option value="<?= htmlspecialchars($brand['name']) ?>"><?= htmlspecialchars($brand['name']) ?></option>
-                    <?php endforeach; ?>
-                </select>
-                <label for="product-color">Цвет:</label>
-                <select id="product-color" name="color" required>
-                    <option value="" disabled selected>Выберите цвет</option>
-                    <?php foreach ($colors as $color): ?>
-                        <option value="<?= htmlspecialchars($color['name']) ?>"><?= htmlspecialchars($color['name']) ?></option>
-                    <?php endforeach; ?>
-                </select>
-                <label for="product-type">Тип часов:</label>
-                <select id="product-type" name="type" required>
-                    <option value="" disabled selected>Выберите тип</option>
-                    <?php foreach ($types as $type): ?>
-                        <option value="<?= htmlspecialchars($type['name']) ?>"><?= htmlspecialchars($type['name']) ?></option>
-                    <?php endforeach; ?>
-                </select>
-                <label for="product-view">Вид:</label>
-                <select id="product-view" name="view" required>
-                    <option value="" disabled selected>Выберите вид</option>
-                    <?php foreach ($views as $view): ?>
-                        <option value="<?= htmlspecialchars($view['name']) ?>"><?= htmlspecialchars($view['name']) ?></option>
-                    <?php endforeach; ?>
-                </select>
-                <label for="product-gender">Пол:</label>
-                <select id="product-gender" name="gender" required>
-                    <option value="" disabled selected>Выберите пол</option>
-                    <option value="Мужской">Мужской</option>
-                    <option value="Женский">Женский</option>
-                    <option value="Унисекс">Унисекс</option>
-                </select>
-                <label for="product-price">Цена:</label>
-                <input type="number" id="product-price" name="price" step="0.01" required>
-                <label for="product-quantity">Количество:</label>
-                <input type="number" id="product-quantity" name="quantity" min="1" required>
-                <label for="product-image">Изображение:</label>
-                <input type="file" id="product-image" name="image" accept="image/*" required>
-                <button type="submit">Добавить товар</button>
+                <div class="form-group">
+                    <label for="product-name">Название товара:</label>
+                    <input type="text" id="product-name" name="name" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="product-brand">Бренд:</label>
+                    <select id="product-brand" name="brand" required>
+                        <option value="" disabled selected>Выберите бренд</option>
+                        <?php foreach ($brands as $brand): ?>
+                            <option value="<?= htmlspecialchars($brand['name']) ?>"><?= htmlspecialchars($brand['name']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="product-color">Цвет:</label>
+                    <select id="product-color" name="color" required>
+                        <option value="" disabled selected>Выберите цвет</option>
+                        <?php foreach ($colors as $color): ?>
+                            <option value="<?= htmlspecialchars($color['name']) ?>"><?= htmlspecialchars($color['name']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="product-type">Тип часов:</label>
+                    <select id="product-type" name="type" required>
+                        <option value="" disabled selected>Выберите тип</option>
+                        <?php foreach ($types as $type): ?>
+                            <option value="<?= htmlspecialchars($type['name']) ?>"><?= htmlspecialchars($type['name']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="product-view">Вид:</label>
+                    <select id="product-view" name="view" required>
+                        <option value="" disabled selected>Выберите вид</option>
+                        <?php foreach ($views as $view): ?>
+                            <option value="<?= htmlspecialchars($view['name']) ?>"><?= htmlspecialchars($view['name']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="product-gender">Пол:</label>
+                    <select id="product-gender" name="gender" required>
+                        <option value="" disabled selected>Выберите пол</option>
+                        <option value="Мужской">Мужской</option>
+                        <option value="Женский">Женский</option>
+                        <option value="Унисекс">Унисекс</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="product-price">Цена (₽):</label>
+                    <input type="number" id="product-price" name="price" step="0.01" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="product-quantity">Количество на складе:</label>
+                    <input type="number" id="product-quantity" name="quantity" min="1" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="product-image">Изображение товара:</label>
+                    <input type="file" id="product-image" name="image" accept="image/*" required class="file-input">
+                </div>
+
+                <button type="submit" class="submit-btn">Добавить товар</button>
             </form>
         </section>
 
         <!-- Раздел "Добавление брендов" -->
         <section id="add-brand" class="section">
-            <h2>Добавление бренда</h2>
+            <h2>Добавить бренд</h2>
             <?php if (!empty($successBrand)): ?>
                 <div class="message success"><?= htmlspecialchars($successBrand) ?></div>
             <?php endif; ?>
             <?php if (!empty($errorBrand)): ?>
                 <div class="message error"><?= htmlspecialchars($errorBrand) ?></div>
             <?php endif; ?>
-            <form method="POST" action="" class="add-product-form">
+            <form method="POST" action="" class="admin-form">
                 <input type="hidden" name="add_brand">
-                <label for="brand-name">Название:</label>
-                <input type="text" id="brand-name" name="brand_name" required>
-                <button type="submit">Добавить бренд</button>
+                <div class="form-group">
+                    <label for="brand-name">Название бренда:</label>
+                    <input type="text" id="brand-name" name="brand_name" required>
+                </div>
+                <button type="submit" class="submit-btn">Добавить бренд</button>
             </form>
         </section>
 
         <!-- Раздел "Добавление цветов" -->
         <section id="add-color" class="section">
-            <h2>Добавление цвета</h2>
+            <h2>Добавить цвет</h2>
             <?php if (!empty($successColor)): ?>
                 <div class="message success"><?= htmlspecialchars($successColor) ?></div>
             <?php endif; ?>
             <?php if (!empty($errorColor)): ?>
                 <div class="message error"><?= htmlspecialchars($errorColor) ?></div>
             <?php endif; ?>
-            <form method="POST" action="" class="add-product-form">
+            <form method="POST" action="" class="admin-form">
                 <input type="hidden" name="add_color">
-                <label for="color-name">Название:</label>
-                <input type="text" id="color-name" name="color_name" required>
-                <button type="submit">Добавить цвет</button>
+                <div class="form-group">
+                    <label for="color-name">Название цвета:</label>
+                    <input type="text" id="color-name" name="color_name" required>
+                </div>
+                <button type="submit" class="submit-btn">Добавить цвет</button>
             </form>
         </section>
 
         <!-- Раздел "Добавление типов" -->
         <section id="add-type" class="section">
-            <h2>Добавление типа</h2>
+            <h2>Добавить тип</h2>
             <?php if (!empty($successType)): ?>
                 <div class="message success"><?= htmlspecialchars($successType) ?></div>
             <?php endif; ?>
             <?php if (!empty($errorType)): ?>
                 <div class="message error"><?= htmlspecialchars($errorType) ?></div>
             <?php endif; ?>
-            <form method="POST" action="" class="add-product-form">
+            <form method="POST" action="" class="admin-form">
                 <input type="hidden" name="add_type">
-                <label for="type-name">Название:</label>
-                <input type="text" id="type-name" name="type_name" required>
-                <button type="submit">Добавить тип</button>
+                <div class="form-group">
+                    <label for="type-name">Название типа:</label>
+                    <input type="text" id="type-name" name="type_name" required>
+                </div>
+                <button type="submit" class="submit-btn">Добавить тип</button>
             </form>
         </section>
 
         <!-- Раздел "Добавление видов" -->
         <section id="add-view" class="section">
-            <h2>Добавление вида</h2>
+            <h2>Добавить вид</h2>
             <?php if (!empty($successView)): ?>
                 <div class="message success"><?= htmlspecialchars($successView) ?></div>
             <?php endif; ?>
             <?php if (!empty($errorView)): ?>
                 <div class="message error"><?= htmlspecialchars($errorView) ?></div>
             <?php endif; ?>
-            <form method="POST" action="" class="add-product-form">
+            <form method="POST" action="" class="admin-form">
                 <input type="hidden" name="add_view">
-                <label for="view-name">Название:</label>
-                <input type="text" id="view-name" name="view_name" required>
-                <button type="submit">Добавить вид</button>
+                <div class="form-group">
+                    <label for="view-name">Название вида:</label>
+                    <input type="text" id="view-name" name="view_name" required>
+                </div>
+                <button type="submit" class="submit-btn">Добавить вид</button>
             </form>
         </section>
-
     </div>
 </div>
 
@@ -515,22 +712,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_view'])) {
     const sidebarLinks = document.querySelectorAll('.sidebar a');
     const sections = document.querySelectorAll('.section');
 
-    // Инициализация: скрываем все разделы, кроме активного
-    sections.forEach(section => {
-        section.style.display = 'none';
-    });
-    document.querySelector('.section.active').style.display = 'block';
-
     sidebarLinks.forEach(link => {
         link.addEventListener('click', function (e) {
             e.preventDefault();
+
             // Удалить активный класс у всех ссылок
             sidebarLinks.forEach(l => l.classList.remove('active'));
-            sections.forEach(section => section.style.display = 'none');
             // Добавить активный класс к выбранной ссылке
             this.classList.add('active');
+
+            // Скрыть все разделы
+            sections.forEach(section => section.classList.remove('active'));
+
+            // Показать выбранный раздел
             const targetId = this.getAttribute('href').substring(1);
-            document.getElementById(targetId).style.display = 'block';
+            document.getElementById(targetId).classList.add('active');
         });
     });
 
@@ -545,7 +741,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_view'])) {
                 }
             });
     }
-
 </script>
 
 </body>

@@ -4,14 +4,32 @@ session_start();
 // Подключение к базе данных
 $host = 'mysql';
 $dbname = 'watch_store';
-$username = 'root'; // Замените на ваше имя пользователя
-$password = 'root';     // Замените на ваш пароль
-
+$username = 'root';
+$password = 'root';
 try {
     $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8", $username, $password);
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 } catch (PDOException $e) {
     die("Ошибка подключения к базе данных: " . $e->getMessage());
+}
+
+// Проверка авторизации
+$isAuthenticated = isset($_SESSION['user_id']);
+
+// Обработка выхода из системы
+if (isset($_GET['logout'])) {
+    session_unset();
+    session_destroy();
+    header("Location: catalog.php");
+    exit();
+}
+
+// Получение количества товаров в корзине
+$cartCount = 0;
+if ($isAuthenticated) {
+    $stmt = $pdo->prepare("SELECT SUM(quantity) FROM cart WHERE user_id = ?");
+    $stmt->execute([$_SESSION['user_id']]);
+    $cartCount = $stmt->fetchColumn() ?? 0;
 }
 
 // Получение минимальной и максимальной цены
@@ -161,107 +179,343 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_to_cart']) && iss
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Каталог Часов</title>
+    <title>Каталог | Minimal Horizon</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
-        /* Стили оставляем без изменений */
-        body {
-            font-family: Arial, sans-serif;
+        :root {
+            --black: #111111;
+            --white: #ffffff;
+            --gray: #e0e0e0;
+            --light-gray: #f5f5f5;
+            --accent: #000000;
+            --text-dark: #333333;
+            --text-light: #777777;
+            --transition: all 0.3s cubic-bezier(0.25, 0.1, 0.25, 1);
+            --error: #e74c3c;
+        }
+
+        * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
 
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            color: var(--text-dark);
+            background-color: var(--white);
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* Шапка */
         header {
-            background-color: #333;
-            color: white;
-            padding: 10px 20px;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            padding: 1.5rem 5%;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            background-color: var(--white);
+            z-index: 1000;
+            box-shadow: 0 1px 20px rgba(0, 0, 0, 0.03);
         }
 
-        .container {
-            max-width: 1200px;
-            margin: 20px auto;
-            padding: 0 20px;
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 300;
+            letter-spacing: 2px;
+            color: var(--black);
+        }
+
+        .logo span {
+            font-weight: 600;
+        }
+
+        nav {
             display: flex;
-            flex-wrap: wrap;
-            gap: 20px;
+            gap: 2rem;
         }
 
+        nav a {
+            color: var(--text-dark);
+            text-decoration: none;
+            font-size: 0.9rem;
+            font-weight: 400;
+            letter-spacing: 1px;
+            transition: var(--transition);
+            position: relative;
+        }
+
+        nav a:hover {
+            color: var(--black);
+        }
+
+        nav a::after {
+            content: '';
+            position: absolute;
+            bottom: -5px;
+            left: 0;
+            width: 0;
+            height: 1px;
+            background: var(--black);
+            transition: var(--transition);
+        }
+
+        nav a:hover::after {
+            width: 100%;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 1.5rem;
+            align-items: center;
+        }
+
+        .icon-btn {
+            background: none;
+            border: none;
+            color: var(--text-dark);
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .icon-btn:hover {
+            color: var(--black);
+            transform: translateY(-2px);
+        }
+
+        .cart-count {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            background-color: var(--black);
+            color: var(--white);
+            border-radius: 50%;
+            width: 18px;
+            height: 18px;
+            font-size: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Основное содержимое */
+        .main-content {
+            padding-top: 80px;
+            display: flex;
+            min-height: calc(100vh - 80px);
+        }
+
+        /* Сайдбар с фильтрами */
         .sidebar {
-            flex: 0 0 200px;
-            margin-right: 20px;
-            background-color: #f9f9f9;
-            padding: 15px;
-            border-radius: 5px;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            width: 280px;
+            padding: 2rem;
+            background-color: var(--light-gray);
+            border-right: 1px solid var(--gray);
         }
 
+        .filter-section {
+            margin-bottom: 2rem;
+        }
+
+        .filter-title {
+            font-size: 1rem;
+            font-weight: 500;
+            margin-bottom: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+        }
+
+        .filter-options {
+            list-style: none;
+        }
+
+        .filter-option {
+            margin-bottom: 0.5rem;
+        }
+
+        .filter-option label {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+
+        .filter-option input[type="checkbox"] {
+            margin-right: 0.5rem;
+        }
+
+        .price-range {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+
+        .price-range input {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid var(--gray);
+            border-radius: 4px;
+        }
+
+        .filter-buttons {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+
+        .filter-button {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .apply-button {
+            background-color: var(--black);
+            color: var(--white);
+            flex: 1;
+        }
+
+        .apply-button:hover {
+            background-color: #333;
+        }
+
+        .reset-button {
+            background-color: var(--white);
+            color: var(--text-dark);
+            border: 1px solid var(--gray);
+        }
+
+        .reset-button:hover {
+            background-color: var(--gray);
+        }
+
+        /* Контент с товарами */
         .content {
             flex: 1;
+            padding: 2rem;
+        }
+
+        .products-header {
             display: flex;
-            flex-wrap: wrap;
-            gap: 20px;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+
+        .products-title {
+            font-size: 1.5rem;
+            font-weight: 300;
+        }
+
+        .products-count {
+            color: var(--text-light);
+            font-size: 0.9rem;
+        }
+
+        .products-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 2rem;
         }
 
         .product-card {
-            width: calc(33.33% - 20px);
-            background-color: #fff;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            padding: 10px;
-            text-align: center;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            background-color: var(--white);
+            border-radius: 4px;
+            overflow: hidden;
+            transition: var(--transition);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
         }
 
         .product-card:hover {
-            transform: scale(1.05);
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+            transform: translateY(-5px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
         }
 
-        .product-card img {
+        .product-image {
+            width: 100%;
+            height: 280px;
+            background-color: var(--light-gray);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+        }
+
+        .product-image img {
             max-width: 100%;
-            height: auto;
-            border-radius: 5px;
-            margin-bottom: 10px;
+            max-height: 100%;
+            object-fit: contain;
         }
 
-        .product-card h3 {
-            margin: 0 0 5px 0;
-            font-size: 16px;
-            color: #333;
+        .product-info {
+            padding: 1.5rem;
         }
 
-        .product-card p {
-            font-size: 14px;
-            color: #666;
-            margin: 5px 0;
+        .product-name {
+            font-size: 1rem;
+            font-weight: 500;
+            margin-bottom: 0.5rem;
         }
 
-        .product-card .price {
-            font-size: 18px;
-            color: #4CAF50;
-            font-weight: bold;
+        .product-brand {
+            font-size: 0.8rem;
+            color: var(--text-light);
+            margin-bottom: 0.5rem;
         }
 
-        button {
-            padding: 10px 15px;
+        .product-details {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .product-detail {
+            font-size: 0.8rem;
+            color: var(--text-light);
+        }
+
+        .product-price {
+            font-size: 1.2rem;
+            font-weight: 500;
+            margin-bottom: 1rem;
+        }
+
+        .add-to-cart {
+            width: 100%;
+            padding: 0.8rem;
+            background-color: var(--black);
+            color: var(--white);
             border: none;
-            border-radius: 5px;
-            font-size: 14px;
+            border-radius: 4px;
             cursor: pointer;
-            transition: background-color 0.3s ease, color 0.3s ease;
+            transition: var(--transition);
         }
 
-        button.add-to-cart-button {
-            background-color: #4CAF50;
-            color: white;
+        .add-to-cart:hover {
+            background-color: #333;
         }
 
-        button.add-to-cart-button:hover {
-            background-color: #45a049;
+        .add-to-cart:disabled {
+            background-color: var(--gray);
+            cursor: not-allowed;
+        }
+
+        .no-products {
+            grid-column: 1 / -1;
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-light);
         }
 
         /* Модальное окно для авторизации */
@@ -275,317 +529,483 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_to_cart']) && iss
             background-color: rgba(0, 0, 0, 0.5);
             justify-content: center;
             align-items: center;
-            z-index: 1000;
+            z-index: 2000;
         }
 
         .modal-content {
-            background-color: #fff;
-            padding: 20px;
-            border-radius: 5px;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-            width: 300px;
-            text-align: center;
+            background-color: var(--white);
+            width: 100%;
+            max-width: 400px;
+            border-radius: 4px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
         }
 
-        .modal-content h2 {
-            margin-bottom: 15px;
-            font-size: 20px;
+        .modal-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--gray);
+            position: relative;
         }
 
-        .modal-content form {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
+        .modal-title {
+            font-size: 1.2rem;
+            font-weight: 500;
         }
 
-        .modal-content input {
-            padding: 10px;
-            border: 1px solid #ccc;
-            border-radius: 5px;
-        }
-
-        .modal-content button {
-            padding: 10px;
+        .modal-close {
+            position: absolute;
+            top: 1.5rem;
+            right: 1.5rem;
+            background: none;
             border: none;
-            border-radius: 5px;
-            font-size: 16px;
             cursor: pointer;
+            color: var(--text-light);
         }
 
-        .modal-content button.login-button {
-            background-color: #4CAF50;
-            color: white;
+        .modal-body {
+            padding: 1.5rem;
         }
 
-        .modal-content button.login-button:hover {
-            background-color: #45a049;
+        .form-group {
+            margin-bottom: 1.5rem;
         }
 
-        .modal-content button.close-button {
-            background-color: #ff6f61;
-            color: white;
-            margin-top: 10px;
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+            color: var(--text-dark);
         }
 
-        .modal-content button.close-button:hover {
-            background-color: #e55039;
+        .form-group input {
+            width: 100%;
+            padding: 0.8rem;
+            border: 1px solid var(--gray);
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: var(--black);
+        }
+
+        .modal-footer {
+            padding: 1.5rem;
+            border-top: 1px solid var(--gray);
+            display: flex;
+            justify-content: flex-end;
+            gap: 1rem;
+        }
+
+        .modal-btn {
+            padding: 0.8rem 1.5rem;
+            border: none;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .modal-btn.primary {
+            background: var(--black);
+            color: var(--white);
+        }
+
+        .modal-btn.secondary {
+            background: var(--white);
+            color: var(--text-dark);
+            border: 1px solid var(--gray);
         }
 
         .error-message {
-            color: red;
-            font-size: 14px;
-            margin-top: 10px;
+            color: var(--error);
+            font-size: 0.8rem;
+            margin-top: 0.5rem;
+            text-align: center;
         }
 
-        header nav a {
-            color: white;
+        /* Подвал */
+        footer {
+            background-color: var(--black);
+            color: var(--white);
+            padding: 3rem 5% 2rem;
+        }
+
+        .footer-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 3rem;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .footer-logo {
+            font-size: 1.2rem;
+            font-weight: 300;
+            letter-spacing: 2px;
+            margin-bottom: 1rem;
+        }
+
+        .footer-logo span {
+            font-weight: 600;
+        }
+
+        .footer-text {
+            color: var(--gray);
+            font-size: 0.9rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .social-links {
+            display: flex;
+            gap: 1rem;
+        }
+
+        .social-link {
+            color: var(--gray);
+            font-size: 1rem;
+            transition: var(--transition);
+        }
+
+        .social-link:hover {
+            color: var(--white);
+        }
+
+        .footer-column h3 {
+            font-size: 1rem;
+            font-weight: 500;
+            margin-bottom: 1.5rem;
+            letter-spacing: 1px;
+        }
+
+        .footer-links {
+            list-style: none;
+        }
+
+        .footer-links li {
+            margin-bottom: 1rem;
+        }
+
+        .footer-links a {
+            color: var(--gray);
             text-decoration: none;
-            font-size: 16px;
-        }
-        header nav a:hover {
-            text-decoration: underline;
+            font-size: 0.9rem;
+            transition: var(--transition);
         }
 
+        .footer-links a:hover {
+            color: var(--white);
+        }
+
+        .footer-bottom {
+            text-align: center;
+            padding-top: 2rem;
+            margin-top: 2rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            color: var(--gray);
+            font-size: 0.8rem;
+        }
+
+        /* Адаптивность */
+        @media (max-width: 1024px) {
+            .sidebar {
+                width: 240px;
+                padding: 1.5rem;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                flex-direction: column;
+            }
+
+            .sidebar {
+                width: 100%;
+                border-right: none;
+                border-bottom: 1px solid var(--gray);
+            }
+
+            nav {
+                display: none;
+            }
+        }
     </style>
 </head>
 <body>
 <header>
+    <a href="index.php" class="logo">MINIMAL <span>HORIZON</span></a>
     <nav>
-        <a href="index.php">Главная</a>
-
+        <a href="catalog.php">Каталог</a>
+        <a href="#about">О нас</a>
+        <a href="#contacts">Контакты</a>
     </nav>
-    <div>
-        <?php if (!isset($_SESSION['user_id'])): ?>
-            <!-- Если пользователь не авторизован, показываем модальное окно -->
-            <button class="cart-button" onclick="showLoginModal()">Корзина 🛒</button>
-            <button class="login-button" onclick="showLoginModal()">Войти</button>
+    <div class="header-actions">
+        <?php if ($isAuthenticated): ?>
+            <div style="position: relative;">
+                <button class="icon-btn" onclick="location.href='cart.php'">
+                    <i class="fas fa-shopping-bag"></i>
+                    <?php if ($cartCount > 0): ?>
+                        <span class="cart-count"><?= $cartCount ?></span>
+                    <?php endif; ?>
+                </button>
+            </div>
+            <button class="icon-btn" onclick="location.href='lk.php'"><i class="far fa-user"></i></button>
+            <button class="icon-btn" onclick="location.href='?logout=1'"><i class="fas fa-sign-out-alt"></i></button>
         <?php else: ?>
-            <!-- Если пользователь авторизован, переходим на страницу корзины -->
-            <button class="cart-button" onclick="location.href='cart.php'">Корзина 🛒</button>
-            <button class="logout-button" onclick="location.href='logout.php'">Выйти</button>
+            <button class="icon-btn" id="loginButton"><i class="far fa-user"></i></button>
         <?php endif; ?>
     </div>
 </header>
 
-<div class="container">
-    <!-- Сайдбар с категориями и фильтрами -->
+<div class="main-content">
+    <!-- Сайдбар с фильтрами -->
     <div class="sidebar">
         <form method="GET" action="" id="filter-form">
-            <h3>Бренд</h3>
-            <ul>
-                <?php if (!empty($categories)): ?>
-                    <?php foreach ($categories as $category): ?>
-                        <li>
-                            <label>
-                                <input
-                                        type="checkbox"
-                                        name="brand[]"
-                                        value="<?= htmlspecialchars($category) ?>"
-                                    <?= in_array($category, $filters['brand'] ?? []) ? 'checked' : '' ?>>
-                                <?= htmlspecialchars($category) ?>
-                            </label>
-                        </li>
-                    <?php endforeach; ?>
-                <?php else: ?>
-                    <p>Нет доступных брендов.</p>
-                <?php endif; ?>
-            </ul>
+            <div class="filter-section">
+                <h3 class="filter-title">Бренд</h3>
+                <ul class="filter-options">
+                    <?php if (!empty($categories)): ?>
+                        <?php foreach ($categories as $category): ?>
+                            <li class="filter-option">
+                                <label>
+                                    <input
+                                            type="checkbox"
+                                            name="brand[]"
+                                            value="<?= htmlspecialchars($category) ?>"
+                                        <?= isset($_GET['brand']) && in_array($category, (array)$_GET['brand']) ? 'checked' : '' ?>>
+                                    <?= htmlspecialchars($category) ?>
+                                </label>
+                            </li>
+                        <?php endforeach; ?>
+                    <?php else: ?>
+                        <li>Нет доступных брендов</li>
+                    <?php endif; ?>
+                </ul>
+            </div>
 
-            <h3>Цвет</h3>
-            <ul>
-                <?php if (!empty($colors)): ?>
-                    <?php foreach ($colors as $color): ?>
-                        <li>
-                            <label>
-                                <input
-                                        type="checkbox"
-                                        name="color[]"
-                                        value="<?= htmlspecialchars($color) ?>"
-                                    <?= in_array($color, $filters['color'] ?? []) ? 'checked' : '' ?>>
-                                <?= htmlspecialchars($color) ?>
-                            </label>
-                        </li>
-                    <?php endforeach; ?>
-                <?php else: ?>
-                    <p>Нет доступных цветов.</p>
-                <?php endif; ?>
-            </ul>
+            <div class="filter-section">
+                <h3 class="filter-title">Цвет</h3>
+                <ul class="filter-options">
+                    <?php if (!empty($colors)): ?>
+                        <?php foreach ($colors as $color): ?>
+                            <li class="filter-option">
+                                <label>
+                                    <input
+                                            type="checkbox"
+                                            name="color[]"
+                                            value="<?= htmlspecialchars($color) ?>"
+                                        <?= isset($_GET['color']) && in_array($color, (array)$_GET['color']) ? 'checked' : '' ?>>
+                                    <?= htmlspecialchars($color) ?>
+                                </label>
+                            </li>
+                        <?php endforeach; ?>
+                    <?php else: ?>
+                        <li>Нет доступных цветов</li>
+                    <?php endif; ?>
+                </ul>
+            </div>
 
-            <h3>Тип</h3>
-            <ul>
-                <?php if (!empty($types)): ?>
-                    <?php foreach ($types as $type): ?>
-                        <li>
-                            <label>
-                                <input
-                                        type="checkbox"
-                                        name="type[]"
-                                        value="<?= htmlspecialchars($type) ?>"
-                                    <?= in_array($type, $filters['type'] ?? []) ? 'checked' : '' ?>>
-                                <?= htmlspecialchars($type) ?>
-                            </label>
-                        </li>
-                    <?php endforeach; ?>
-                <?php else: ?>
-                    <p>Нет доступных типов.</p>
-                <?php endif; ?>
-            </ul>
+            <div class="filter-section">
+                <h3 class="filter-title">Тип</h3>
+                <ul class="filter-options">
+                    <?php if (!empty($types)): ?>
+                        <?php foreach ($types as $type): ?>
+                            <li class="filter-option">
+                                <label>
+                                    <input
+                                            type="checkbox"
+                                            name="type[]"
+                                            value="<?= htmlspecialchars($type) ?>"
+                                        <?= isset($_GET['type']) && in_array($type, (array)$_GET['type']) ? 'checked' : '' ?>>
+                                    <?= htmlspecialchars($type) ?>
+                                </label>
+                            </li>
+                        <?php endforeach; ?>
+                    <?php else: ?>
+                        <li>Нет доступных типов</li>
+                    <?php endif; ?>
+                </ul>
+            </div>
 
-            <h3>Вид</h3>
-            <ul>
-                <?php if (!empty($views)): ?>
-                    <?php foreach ($views as $view): ?>
-                        <li>
-                            <label>
-                                <input
-                                        type="checkbox"
-                                        name="view[]"
-                                        value="<?= htmlspecialchars($view) ?>"
-                                    <?= in_array($view, $filters['view'] ?? []) ? 'checked' : '' ?>>
-                                <?= htmlspecialchars($view) ?>
-                            </label>
-                        </li>
-                    <?php endforeach; ?>
-                <?php else: ?>
-                    <p>Нет доступных видов.</p>
-                <?php endif; ?>
-            </ul>
+            <div class="filter-section">
+                <h3 class="filter-title">Цена</h3>
+                <div class="price-range">
+                    <input type="number" name="min_price" placeholder="От"
+                           value="<?= htmlspecialchars($_GET['min_price'] ?? $minPrice) ?>" min="0">
+                    <input type="number" name="max_price" placeholder="До"
+                           value="<?= htmlspecialchars($_GET['max_price'] ?? $maxPrice) ?>" min="0">
+                </div>
+            </div>
 
-            <h3>Пол</h3>
-            <ul>
-                <?php if (!empty($genders)): ?>
-                    <?php foreach ($genders as $gender): ?>
-                        <li>
-                            <label>
-                                <input
-                                        type="checkbox"
-                                        name="gender[]"
-                                        value="<?= htmlspecialchars($gender) ?>"
-                                    <?= in_array($gender, $filters['gender'] ?? []) ? 'checked' : '' ?>>
-                                <?= htmlspecialchars($gender) ?>
-                            </label>
-                        </li>
-                    <?php endforeach; ?>
-                <?php else: ?>
-                    <p>Нет доступных полов.</p>
-                <?php endif; ?>
-            </ul>
-
-            <h3>Цена</h3>
-            <label>От: <input type="number" id="price-min" name="min_price" value="<?= htmlspecialchars($_GET['min_price'] ?? $minPrice) ?>"></label><br>
-            <label>До: <input type="number" id="price-max" name="max_price" value="<?= htmlspecialchars($_GET['max_price'] ?? $maxPrice) ?>"></label><br>
-
-            <!-- Кнопка "Применить" -->
-            <button type="submit" name="apply" class="apply-button">Применить</button>
-
-            <!-- Кнопка "Очистить фильтры" -->
-            <button type="button" onclick="clearFilters()" class="reset-button">Очистить фильтры</button>
+            <div class="filter-buttons">
+                <button type="submit" name="apply" class="filter-button apply-button">Применить</button>
+                <button type="button" onclick="clearFilters()" class="filter-button reset-button">Сбросить</button>
+            </div>
         </form>
     </div>
 
     <!-- Основной контент с товарами -->
-    <div class="content" id="product-list">
-        <?php if (empty($filteredProducts)): ?>
-            <p>Нет товаров, соответствующих выбранным фильтрам.</p>
-        <?php else: ?>
-            <?php foreach ($filteredProducts as $product): ?>
-                <div class="product-card">
-                    <img src="uploads/<?= htmlspecialchars($product['image_path']) ?>" alt="<?= htmlspecialchars($product['name']) ?>">
-                    <h3><?= htmlspecialchars($product['name']) ?></h3>
-                    <p>Бренд: <?= htmlspecialchars($product['brand_name']) ?></p>
-                    <p>Цвет: <?= htmlspecialchars($product['color_name']) ?></p>
-                    <p>Тип: <?= htmlspecialchars($product['type_name']) ?></p>
-                    <p>Вид: <?= htmlspecialchars($product['view_name']) ?></p>
-                    <p>Пол: <?= htmlspecialchars($product['gender']) ?></p>
-                    <p class="price"><?= htmlspecialchars($product['price']) ?> ₽</p>
+    <div class="content">
+        <div class="products-header">
+            <h1 class="products-title">Каталог часов</h1>
+            <div class="products-count"><?= count($filteredProducts) ?> товаров</div>
+        </div>
 
-                    <!-- Кнопка "Добавить в корзину" -->
-                    <form method="POST" action="" class="add-to-cart-form">
-                        <input type="hidden" name="product_id" value="<?= $product['id'] ?>">
-                        <button type="submit" name="add_to_cart" class="add-to-cart-button">Добавить в корзину</button>
-                    </form>
+        <div class="products-grid">
+            <?php if (empty($filteredProducts)): ?>
+                <div class="no-products">
+                    <p>Нет товаров, соответствующих выбранным фильтрам</p>
+                    <button onclick="clearFilters()" class="filter-button apply-button">Сбросить фильтры</button>
                 </div>
-            <?php endforeach; ?>
-        <?php endif; ?>
+            <?php else: ?>
+                <?php foreach ($filteredProducts as $product): ?>
+                    <div class="product-card">
+                        <div class="product-image">
+                            <img src="uploads/<?= htmlspecialchars($product['image_path']) ?>" alt="<?= htmlspecialchars($product['name']) ?>">
+                        </div>
+                        <div class="product-info">
+                            <h3 class="product-name"><?= htmlspecialchars($product['name']) ?></h3>
+                            <p class="product-brand"><?= htmlspecialchars($product['brand_name']) ?></p>
+                            <div class="product-details">
+                                <span class="product-detail"><?= htmlspecialchars($product['color_name']) ?></span>
+                                <span class="product-detail"><?= htmlspecialchars($product['type_name']) ?></span>
+                                <span class="product-detail"><?= htmlspecialchars($product['gender']) ?></span>
+                            </div>
+                            <p class="product-price"><?= number_format($product['price'], 0, '.', ' ') ?> ₽</p>
+                            <form method="POST" action="" onsubmit="return checkLogin(this)">
+                                <input type="hidden" name="product_id" value="<?= $product['id'] ?>">
+                                <button type="submit" name="add_to_cart" class="add-to-cart">
+                                    Добавить в корзину
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            <?php endif; ?>
+        </div>
     </div>
 </div>
 
+<footer>
+    <div class="footer-grid">
+        <div>
+            <div class="footer-logo">MINIMAL <span>HORIZON</span></div>
+            <p class="footer-text">
+                Элегантные часы для современного образа жизни. Безупречное качество и дизайн.
+            </p>
+            <div class="social-links">
+                <a href="#" class="social-link"><i class="fab fa-instagram"></i></a>
+                <a href="#" class="social-link"><i class="fab fa-facebook-f"></i></a>
+                <a href="#" class="social-link"><i class="fab fa-pinterest"></i></a>
+            </div>
+        </div>
+        <div>
+            <h3>Магазин</h3>
+            <ul class="footer-links">
+                <li><a href="catalog.php">Каталог</a></li>
+                <li><a href="#about">О нас</a></li>
+                <li><a href="#contacts">Контакты</a></li>
+            </ul>
+        </div>
+        <div>
+            <h3>Информация</h3>
+            <ul class="footer-links">
+                <li><a href="#">Доставка и оплата</a></li>
+                <li><a href="#">Гарантия</a></li>
+                <li><a href="#">Возврат</a></li>
+            </ul>
+        </div>
+        <div>
+            <h3>Контакты</h3>
+            <ul class="footer-links">
+                <li>Москва, ул. Часовая, д. 5</li>
+                <li>+7 (999) 123-45-67</li>
+                <li>info@watchstore.ru</li>
+            </ul>
+        </div>
+    </div>
+    <div class="footer-bottom">
+        © 2023 Minimal Horizon. Все права защищены.
+    </div>
+</footer>
+
 <!-- Модальное окно для авторизации -->
-<div id="login-modal" class="modal">
+<div id="loginModal" class="modal">
     <div class="modal-content">
-        <h2>Авторизация</h2>
+        <div class="modal-header">
+            <h3 class="modal-title">Авторизация</h3>
+            <button class="modal-close" onclick="closeLoginModal()">×</button>
+        </div>
         <form method="POST" action="login.php" id="login-form">
-            <label for="email">Email:</label>
-            <input type="email" id="email" name="email" required>
-
-            <label for="password">Пароль:</label>
-            <input type="password" id="password" name="password" required>
-
-            <button type="submit" class="login-button">Войти</button>
-            <p class="error-message" id="error-message"></p>
+            <input type="hidden" name="redirect" value="catalog.php">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="email">Email:</label>
+                    <input type="email" id="email" name="email" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Пароль:</label>
+                    <input type="password" id="password" name="password" required>
+                </div>
+                <p class="error-message" id="error-message">
+                    <?php
+                    // Вывод ошибки авторизации, если она есть
+                    if (isset($_SESSION['login_error'])) {
+                        echo $_SESSION['login_error'];
+                        unset($_SESSION['login_error']);
+                    }
+                    ?>
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="modal-btn secondary" onclick="closeLoginModal()">Закрыть</button>
+                <button type="submit" class="modal-btn primary">Войти</button>
+            </div>
         </form>
-
-        <button type="button" onclick="closeLoginModal()" class="close-button">Закрыть</button>
     </div>
 </div>
 
 <script>
-    // Функция для показа модального окна авторизации
-    function showLoginModal() {
-        document.getElementById('login-modal').style.display = 'flex';
-    }
+    // Показать модальное окно
+    document.getElementById('loginButton')?.addEventListener('click', function() {
+        document.getElementById('loginModal').style.display = 'flex';
+    });
 
-    // Функция для закрытия модального окна авторизации
+    // Закрыть модальное окно
     function closeLoginModal() {
-        document.getElementById('login-modal').style.display = 'none';
-    }
-
-    // Функция для очистки фильтров
-    function clearFilters() {
-        document.getElementById('filter-form').reset(); // Сброс формы
-        window.location.href = '?'; // Перезагрузка страницы без параметров
+        document.getElementById('loginModal').style.display = 'none';
     }
 
     // Проверка авторизации перед добавлением товара в корзину
-    document.addEventListener('DOMContentLoaded', () => {
-        const addToCartForms = document.querySelectorAll('.add-to-cart-form');
+    function checkLogin(form) {
+        <?php if (!$isAuthenticated): ?>
+        alert('Для добавления товара в корзину необходимо авторизоваться.');
+        document.getElementById('loginModal').style.display = 'flex';
+        return false;
+        <?php endif; ?>
+        return true;
+    }
 
-        addToCartForms.forEach(form => {
-            form.addEventListener('submit', function (event) {
-                // Если пользователь не авторизован, показываем модальное окно
-                if (!sessionStorage.getItem('is_logged_in')) {
-                    event.preventDefault(); // Предотвращаем отправку формы
-                    showLoginModal(); // Показываем модальное окно
-                }
-            });
-        });
-
-        // Обработка перехода в корзину
-        const cartButton = document.querySelector('.cart-button');
-        if (cartButton) {
-            cartButton.addEventListener('click', function (event) {
-                // Если пользователь не авторизован, показываем модальное окно
-                if (!sessionStorage.getItem('is_logged_in')) {
-                    event.preventDefault(); // Предотвращаем переход
-                    showLoginModal(); // Показываем модальное окно
-                }
-            });
+    // Закрыть модальное окно при клике вне его
+    window.addEventListener('click', function(event) {
+        if (event.target === document.getElementById('loginModal')) {
+            closeLoginModal();
         }
     });
 
-    // После успешной авторизации разрешаем действия
-    <?php if (isset($_SESSION['user_id'])): ?>
-    sessionStorage.setItem('is_logged_in', 'true'); // Устанавливаем флаг авторизации
-    <?php else: ?>
-    sessionStorage.removeItem('is_logged_in'); // Удаляем флаг авторизации
-    <?php endif; ?>
-
-    // Функция для обновления состояния после входа
-    function afterSuccessfulLogin() {
-        sessionStorage.setItem('is_logged_in', 'true'); // Устанавливаем флаг авторизации
-        closeLoginModal(); // Закрываем модальное окно
-        location.reload(); // Перезагружаем страницу, чтобы обновить состояние
+    // Очистка фильтров
+    function clearFilters() {
+        document.getElementById('filter-form').reset();
+        window.location.href = 'catalog.php';
     }
+
+    // После успешной авторизации перезагружаем страницу
+    <?php if (isset($_SESSION['user_id'])): ?>
+    sessionStorage.setItem('is_logged_in', 'true');
+    <?php else: ?>
+    sessionStorage.removeItem('is_logged_in');
+    <?php endif; ?>
 </script>
 </body>
 </html>

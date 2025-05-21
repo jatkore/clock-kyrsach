@@ -1,6 +1,5 @@
 <?php
 session_start();
-
 // Проверяем, авторизован ли пользователь
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'user') {
     header("Location: login.php");
@@ -10,8 +9,8 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'user') {
 // Подключение к базе данных
 $host = 'mysql';
 $dbname = 'watch_store';
-$username = 'root'; // Замените на ваше имя пользователя
-$password = 'root';     // Замените на ваш пароль
+$username = 'root';
+$password = 'root';
 
 try {
     $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8", $username, $password);
@@ -23,41 +22,56 @@ try {
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if (!$user) {
-        // Если пользователь не найден, перенаправляем на страницу входа
         header("Location: login.php");
         exit;
     }
 
+    $success = '';
+    $error = '';
+
+    $isAuthenticated = isset($_SESSION['user_id']);
+
+// Обработка выхода из системы
+    if (isset($_GET['logout'])) {
+        session_unset();
+        session_destroy();
+        header("Location: index.php");
+        exit();
+    }
+
     // Обработка сохранения изменений
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_profile'])) {
-        $full_name = $_POST['full_name'];
-        $phone = $_POST['phone'];
-        $email = $_POST['email'];
+        $full_name = $_POST['full_name'] ?? '';
+        $phone = $_POST['phone'] ?? '';
+        $email = $_POST['email'] ?? '';
 
-        // Обновление профиля
-        $stmt = $pdo->prepare("UPDATE users SET full_name = ?, phone = ?, email = ? WHERE id = ?");
-        $stmt->execute([$full_name, $phone, $email, $_SESSION['user_id']]);
-        $user['full_name'] = $full_name;
-        $user['phone'] = $phone;
-        $user['email'] = $email;
-        $success = "Данные успешно обновлены!";
+        if (empty($full_name) || empty($phone) || empty($email)) {
+            $error = "Пожалуйста, заполните все поля.";
+        } else {
+            try {
+                $stmt = $pdo->prepare("UPDATE users SET full_name = ?, phone = ?, email = ? WHERE id = ?");
+                $stmt->execute([$full_name, $phone, $email, $_SESSION['user_id']]);
+                $user['full_name'] = $full_name;
+                $user['phone'] = $phone;
+                $user['email'] = $email;
+                $success = "Данные успешно обновлены!";
+            } catch (PDOException $e) {
+                $error = "Ошибка при обновлении данных: " . $e->getMessage();
+            }
+        }
     }
 
     // Обработка загрузки аватара
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['avatar'])) {
         $uploadDir = 'Avatars/';
-        if (!is_dir($uploadDir)) {
-            mkdir($uploadDir, 0777, true);
-        }
+        if (!is_dir($uploadDir)) mkdir($uploadDir, 0777, true);
 
         $emailSafe = str_replace(['@', '.'], ['-', '_'], $user['email']);
         $fileExtension = pathinfo($_FILES['avatar']['name'], PATHINFO_EXTENSION);
         $fileName = $emailSafe . '.' . strtolower($fileExtension);
         $filePath = $uploadDir . $fileName;
 
-        if (file_exists($filePath)) {
-            unlink($filePath);
-        }
+        if (file_exists($filePath)) unlink($filePath);
 
         if (move_uploaded_file($_FILES['avatar']['tmp_name'], $filePath)) {
             $stmt = $pdo->prepare("UPDATE users SET avatar_path = ? WHERE id = ?");
@@ -68,192 +82,105 @@ try {
             $error = "Ошибка при загрузке аватара.";
         }
     }
+
+
+    $cartCount = 0;
+    if ($isAuthenticated) {
+        $stmt = $pdo->prepare("SELECT SUM(quantity) FROM cart WHERE user_id = ?");
+        $stmt->execute([$_SESSION['user_id']]);
+        $cartCount = $stmt->fetchColumn() ?? 0;
+    }
+
+
 } catch (PDOException $e) {
     die("Ошибка подключения к базе данных: " . $e->getMessage());
 }
 ?>
-
 <!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Личный Кабинет</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css ">
     <style>
-        /* Общие стили */
+        :root {
+            --black: #111111;
+            --white: #ffffff;
+            --gray: #e0e0e0;
+            --light-gray: #f5f5f5;
+            --accent: #000000;
+            --text-dark: #333333;
+            --text-light: #777777;
+            --transition: all 0.3s cubic-bezier(0.25, 0.1, 0.25, 1);
+            --error: #e74c3c;
+        }
+
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            margin: 0;
-            padding: 0;
-            background-color: #f9f9f9;
-            color: #333;
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            color: var(--text-dark);
+            background-color: var(--white);
+            line-height: 1.6;
         }
 
         header {
-            background-color: #2c3e50;
-            color: white;
-            padding: 15px 30px;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            padding: 1.5rem 5%;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            background-color: var(--white);
+            z-index: 1000;
+            box-shadow: 0 1px 20px rgba(0, 0, 0, 0.03);
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 300;
+            letter-spacing: 2px;
+            color: var(--black);
+        }
+
+        .logo span {
+            font-weight: 600;
+        }
+
+        nav {
+            display: flex;
+            gap: 2rem;
         }
 
         nav a {
-            color: white;
+            color: var(--text-dark);
             text-decoration: none;
-            margin-right: 20px;
-            font-size: 16px;
-            transition: opacity 0.3s;
+            font-size: 0.9rem;
+            font-weight: 400;
+            letter-spacing: 1px;
+            transition: var(--transition);
+            position: relative;
         }
 
         nav a:hover {
-            opacity: 0.8;
+            color: var(--black);
         }
 
-        .container {
-            max-width: 1200px;
-            margin: 30px auto;
-            padding: 0 20px;
-            display: flex;
-            gap: 20px;
+        nav a::after {
+            content: '';
+            position: absolute;
+            bottom: -5px;
+            left: 0;
+            width: 0;
+            height: 1px;
+            background: var(--black);
+            transition: var(--transition);
         }
 
-        /* Сайдбар */
-        .sidebar {
-            flex: 0 0 220px;
-            background-color: #ffffff;
-            border-radius: 10px;
-            padding: 20px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-        }
-
-        .sidebar h3 {
-            font-size: 18px;
-            margin-bottom: 15px;
-            color: #2c3e50;
-        }
-
-        .sidebar ul {
-            list-style: none;
-            padding: 0;
-        }
-
-        .sidebar li {
-            margin-bottom: 10px;
-        }
-
-        .sidebar a {
-            color: #34495e;
-            text-decoration: none;
-            font-weight: 500;
-            display: block;
-            padding: 8px 12px;
-            border-radius: 6px;
-            transition: background-color 0.3s;
-        }
-
-        .sidebar a:hover,
-        .sidebar a.active {
-            background-color: #ecf0f1;
-            color: #2c3e50;
-        }
-
-        /* Основной контент */
-        .content {
-            flex: 1;
-            background-color: #fff;
-            border-radius: 10px;
-            padding: 25px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-        }
-
-        .profile-section h2 {
-            margin-top: 0;
-            font-size: 22px;
-            color: #2c3e50;
-            margin-bottom: 20px;
-            border-bottom: 1px solid #eee;
-            padding-bottom: 10px;
-        }
-
-        .profile-avatar {
-            display: flex;
-            align-items: center;
-            margin-bottom: 20px;
-        }
-
-        .profile-avatar img {
-            width: 70px;
-            height: 70px;
-            border-radius: 50%;
-            object-fit: cover;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.15);
-        }
-
-        .upload-button {
-            background-color: #3498db;
-            color: white;
-            border: none;
-            padding: 8px 12px;
-            font-size: 14px;
-            border-radius: 6px;
-            cursor: pointer;
-            margin-left: 15px;
-            transition: background-color 0.3s;
-        }
-
-        .upload-button:hover {
-            background-color: #2980b9;
-        }
-
-        input[type="text"] {
+        nav a:hover::after {
             width: 100%;
-            padding: 8px;
-            margin-top: 5px;
-            border: 1px solid #ccc;
-            border-radius: 6px;
-            font-size: 14px;
         }
 
-        .buttons {
-            margin-top: 20px;
-        }
-
-        .btn {
-            background-color: #2ecc71;
-            color: white;
-            border: none;
-            padding: 10px 16px;
-            margin-right: 10px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 14px;
-            transition: background-color 0.3s;
-        }
-
-        .btn:hover {
-            background-color: #27ae60;
-        }
-
-        .message {
-            padding: 12px;
-            margin-bottom: 20px;
-            border-radius: 6px;
-            font-size: 14px;
-        }
-
-        .success {
-            background-color: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-        }
-
-        .error {
-            background-color: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
-        }
 
         .editable {
             display: none;
@@ -267,74 +194,297 @@ try {
             display: block;
         }
 
-        input[type="text"] {
+        .icon-btn {
+            background: none;
+            border: none;
+            color: var(--text-dark);
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .icon-btn:hover {
+            color: var(--black);
+            transform: translateY(-2px);
+        }
+
+        .upload-button {
+            background-color: #000000;
+            color: white;
+            border: none;
+            padding: 10px 12px;
+            font-size: 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-left: 15px;
+            transition: background-color 0.3s;
+        }
+
+        .upload-button:hover {
+            background-color: #2980b9;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 1.5rem;
+            align-items: center;
+        }
+
+        .header-actions button {
+            background: none;
+            border: none;
+            color: var(--text-dark);
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .container {
+            display: flex;
+            margin-top: 80px;
+            padding: 2rem 10%;
+        }
+
+        .sidebar {
+            width: 250px;
+            margin-right: 2rem;
+        }
+
+        .sidebar h3 {
+            font-size: 1.2rem;
+            margin-bottom: 1rem;
+        }
+
+        .sidebar ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        .sidebar li {
+            margin-bottom: 0.8rem;
+        }
+
+        .sidebar a {
+            text-decoration: none;
+            color: var(--text-dark);
+            font-weight: 400;
+            transition: var(--transition);
+        }
+
+        .sidebar a:hover {
+            color: var(--black);
+        }
+
+        .content {
+            flex-grow: 1;
+        }
+
+        .section {
+            display: none;
+        }
+
+        .section.active {
+            display: block;
+        }
+
+        .message {
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border-radius: 4px;
+        }
+
+        .message.success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+
+        .message.error {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+
+        form.profile-form {
+            background-color: var(--light-gray);
+            padding: 2rem;
+            border-radius: 4px;
+            max-width: 500px;
+        }
+
+        form label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: bold;
+        }
+
+        form input[type="text"] {
             width: 100%;
-            padding: 5px;
-            margin-top: 5px;
+            padding: 0.8rem;
+            margin-bottom: 1rem;
+            border: 1px solid var(--gray);
+            border-radius: 4px;
         }
 
-        /* Адаптивность */
-        @media (max-width: 768px) {
-            .container {
-                flex-direction: column;
-            }
-
-            .profile-avatar img {
-                width: 60px;
-                height: 60px;
-            }
-
-            .editable-field {
-                display: none;
-                width: 100%;
-                padding: 8px;
-                margin-top: 5px;
-                border: 1px solid #ccc;
-                border-radius: 6px;
-                font-size: 14px;
-            }
-
-
+        form button {
+            background-color: var(--black);
+            color: var(--white);
+            padding: 0.8rem 1.5rem;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
         }
-    </style>
+
+        form button:hover {
+            background-color: #333333;
+        }
+
+        .profile-avatar {
+            display: flex;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .profile-avatar img {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            object-fit: cover;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+        }
+
+        .profile-avatar input[type="file"] {
+            margin-left: 1rem;
+        }
+
+        footer {
+            background-color: var(--black);
+            color: var(--white);
+            padding: 5rem 10% 2rem;
+        }
+
+        .footer-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 3rem;
+            margin-bottom: 3rem;
+        }
+
+        .footer-logo {
+            font-size: 1.2rem;
+            font-weight: 300;
+            letter-spacing: 2px;
+            margin-bottom: 1rem;
+        }
+
+        .footer-logo span {
+            font-weight: 600;
+        }
+
+        .footer-text {
+            color: var(--gray);
+            font-size: 0.9rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .social-links {
+            display: flex;
+            gap: 1rem;
+        }
+
+        .social-link {
+            color: var(--gray);
+            font-size: 1rem;
+            transition: var(--transition);
+        }
+
+        .social-link:hover {
+            color: var(--white);
+        }
+
+        .footer-column h3 {
+            font-size: 1rem;
+            font-weight: 500;
+            margin-bottom: 1.5rem;
+            letter-spacing: 1px;
+        }
+
+        .footer-links {
+            list-style: none;
+        }
+
+        .footer-links li {
+            margin-bottom: 1rem;
+        }
+
+        .footer-links a {
+            color: var(--gray);
+            text-decoration: none;
+            font-size: 0.9rem;
+            transition: var(--transition);
+        }
+
+        .footer-links a:hover {
+            color: var(--white);
+        }
+
+        .footer-bottom {
+            text-align: center;
+            padding-top: 2rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            color: var(--gray);
+            font-size: 0.8rem;
+        }
+
 
     </style>
 </head>
 <body>
 <header>
+    <div class="logo">MINIMAL <span>HORIZON</span></div>
     <nav>
-        <a href="#">Главная</a>
-        <a href="#">Каталог</a>
-        <a href="#">О нас</a>
-        <a href="#">Контакты</a>
+        <a href="index.php" class="active">Главная</a>
+
     </nav>
-    <div>
-        <button class="cart-button">Корзина 🛒</button>
-        <button onclick="location.href='logout.php'" class="logout-button">Выйти</button>
+
+
+    <div class="header-actions">
+        <?php if ($isAuthenticated): ?>
+            <div style="position: relative;">
+                <button class="icon-btn" onclick="location.href='cart.php'">
+                    <i class="fas fa-shopping-bag"></i>
+                    <?php if ($cartCount > 0): ?>
+                        <span class="cart-count"><?= $cartCount ?></span>
+                    <?php endif; ?>
+                </button>
+            </div>
+            <button class="icon-btn" onclick="location.href='?logout=1'"><i class="fas fa-sign-out-alt"></i></button>
+            <button class="icon-btn" onclick="location.href='?logout=1'"><i class="fas fa-sign-out-alt"></i></button>
+            <button class="icon-btn" onclick="location.href='?logout=1'"><i class="fas fa-sign-out-alt"></i></button>
+
+        <?php else: ?>
+            <button class="icon-btn" id="loginButton"><i class="far fa-user"></i></button>
+        <?php endif; ?>
     </div>
 </header>
 
 <div class="container">
-    <!-- Сайдбар с навигацией -->
     <div class="sidebar">
         <h3>Меню</h3>
         <ul>
             <li><a href="#profile" class="active">О себе</a></li>
-            <li><a href="#orders">Сделанные заказы</a></li>
+            <li><a href="#orders">Заказы</a></li>
         </ul>
     </div>
 
-    <!-- Основной контент -->
     <div class="content">
-        <!-- Блок "О себе" -->
-        <section id="profile" class="profile-section">
+        <!-- Раздел "О себе" -->
+        <section id="profile" class="section active">
             <h2>О себе</h2>
-
-            <?php if (isset($success)): ?>
+            <?php if ($success): ?>
                 <div class="message success"><?= htmlspecialchars($success) ?></div>
-            <?php elseif (isset($error)): ?>
+            <?php elseif ($error): ?>
                 <div class="message error"><?= htmlspecialchars($error) ?></div>
             <?php endif; ?>
+
 
             <form method="post" action="" enctype="multipart/form-data">
                 <div class="profile-avatar">
@@ -367,17 +517,19 @@ try {
                     <button type="submit" name="save_profile" id="saveBtn" class="btn" style="display:none;">Сохранить</button>
                 </div>
             </form>
+
+
         </section>
 
-        <!-- Блок "Сделанные заказы" -->
-        <section id="orders" class="orders-section">
-            <h2>Сделанные заказы</h2>
-            <div id="order-list">
-                <!-- Заказы будут загружаться динамически -->
-            </div>
+        <!-- Раздел "Заказы" -->
+        <section id="orders" class="section">
+            <h2>Ваши заказы</h2>
+            <p>На данный момент список ваших заказов пуст.</p>
         </section>
     </div>
 </div>
+
+
 
 <script>
     const editBtn = document.getElementById('editBtn');
@@ -397,5 +549,35 @@ try {
         editBtn.style.display = 'none';
     });
 </script>
+
+<script>
+    // Показать модальное окно
+    document.getElementById('loginButton')?.addEventListener('click', function() {
+        document.getElementById('loginModal').style.display = 'flex';
+    });
+
+    // Закрыть модальное окно
+    function closeLoginModal() {
+        document.getElementById('loginModal').style.display = 'none';
+    }
+
+    // Проверка авторизации перед добавлением товара в корзину
+    function checkLogin(form) {
+        <?php if (!$isAuthenticated): ?>
+        alert('Для добавления товара в корзину необходимо авторизоваться.');
+        document.getElementById('loginModal').style.display = 'flex';
+        return false;
+        <?php endif; ?>
+        return true;
+    }
+
+    // Закрыть модальное окно при клике вне его
+    window.addEventListener('click', function(event) {
+        if (event.target === document.getElementById('loginModal')) {
+            closeLoginModal();
+        }
+    });
+</script>
+
 </body>
 </html>
