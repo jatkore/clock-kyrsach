@@ -1,18 +1,30 @@
 <?php
+// Старт сессии должен быть в самом начале файла, до любого вывода
 session_start();
+
 // Подключение к базе данных
 $host = 'mysql';
 $dbname = 'watch_store';
-$username = 'root'; // Замените на ваше имя пользователя
-$password = 'root'; // Замените на ваш пароль
+$username = 'root';
+$password = 'root';
 try {
     $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8", $username, $password);
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 } catch (PDOException $e) {
     die("Ошибка подключения к базе данных: " . $e->getMessage());
 }
+
 // Проверка авторизации
 $isAuthenticated = isset($_SESSION['user_id']);
+
+// Обработка выхода из системы
+if (isset($_GET['logout'])) {
+    session_unset();
+    session_destroy();
+    header("Location: index.php");
+    exit();
+}
+
 // Получение 7 самых часто покупаемых товаров
 $popularProductsStmt = $pdo->query("
     SELECT p.id, p.name, p.brand_name, p.color_name, p.type_name, p.view_name, p.gender, p.price, p.image_path 
@@ -23,6 +35,7 @@ $popularProductsStmt = $pdo->query("
     LIMIT 7
 ");
 $popularProducts = $popularProductsStmt->fetchAll(PDO::FETCH_ASSOC);
+
 // Функция проверки наличия товара в корзине
 function isProductInCart($pdo, $userId, $productId) {
     if (!$userId) return false;
@@ -30,168 +43,421 @@ function isProductInCart($pdo, $userId, $productId) {
     $stmt->execute([$userId, $productId]);
     return $stmt->fetchColumn() > 0;
 }
+
+// Получение количества товаров в корзине
+$cartCount = 0;
+if ($isAuthenticated) {
+    $stmt = $pdo->prepare("SELECT SUM(quantity) FROM cart WHERE user_id = ?");
+    $stmt->execute([$_SESSION['user_id']]);
+    $cartCount = $stmt->fetchColumn() ?? 0;
+}
 ?>
 <!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Магазин Часов</title>
+    <title>Minimal Horizon | Утончённые часы</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
-        html {
-            scroll-behavior: smooth; /* Плавная прокрутка */
+        :root {
+            --black: #111111;
+            --white: #ffffff;
+            --gray: #e0e0e0;
+            --light-gray: #f5f5f5;
+            --accent: #000000;
+            --text-dark: #333333;
+            --text-light: #777777;
+            --transition: all 0.3s cubic-bezier(0.25, 0.1, 0.25, 1);
+            --error: #e74c3c;
         }
-        /* Общие стили */
-        body {
-            font-family: Arial, sans-serif;
+
+        * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
+
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            color: var(--text-dark);
+            background-color: var(--white);
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* Шапка */
         header {
-            background-color: #333;
-            color: white;
-            padding: 10px 20px;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            padding: 1.5rem 5%;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            background-color: var(--white);
+            z-index: 1000;
+            box-shadow: 0 1px 20px rgba(0, 0, 0, 0.03);
         }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 300;
+            letter-spacing: 2px;
+            color: var(--black);
+        }
+
+        .logo span {
+            font-weight: 600;
+        }
+
         nav {
             display: flex;
-            gap: 15px;
+            gap: 2rem;
         }
+
         nav a {
-            color: white;
+            color: var(--text-dark);
             text-decoration: none;
-            font-size: 16px;
+            font-size: 0.9rem;
+            font-weight: 400;
+            letter-spacing: 1px;
+            transition: var(--transition);
+            position: relative;
         }
+
         nav a:hover {
-            text-decoration: underline;
+            color: var(--black);
         }
-        .search-container {
+
+        nav a::after {
+            content: '';
+            position: absolute;
+            bottom: -5px;
+            left: 0;
+            width: 0;
+            height: 1px;
+            background: var(--black);
+            transition: var(--transition);
+        }
+
+        nav a:hover::after {
+            width: 100%;
+        }
+
+        .header-actions {
             display: flex;
+            gap: 1.5rem;
             align-items: center;
         }
-        .search-input {
-            padding: 5px;
-            font-size: 16px;
-            border: 1px solid #ccc;
-            border-radius: 5px;
-        }
-        .login-button {
-            background-color: #4CAF50;
-            color: white;
+
+        .icon-btn {
+            background: none;
             border: none;
-            padding: 5px 10px;
-            font-size: 16px;
-            border-radius: 5px;
+            color: var(--text-dark);
+            font-size: 1.1rem;
             cursor: pointer;
+            transition: var(--transition);
         }
-        .login-button:hover {
-            background-color: #45a049;
+
+        .icon-btn:hover {
+            color: var(--black);
+            transform: translateY(-2px);
         }
-        /* Стили для кнопки корзины */
-        .cart-button {
-            background-color: #ff6f61;
-            color: white;
+
+        .cart-count {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            background-color: var(--black);
+            color: var(--white);
+            border-radius: 50%;
+            width: 18px;
+            height: 18px;
+            font-size: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Герой-секция */
+        .hero {
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            padding: 0 10%;
+            background-color: var(--light-gray);
+            position: relative;
+            overflow: hidden;
+            margin-top: 80px;
+        }
+
+        .hero-content {
+            max-width: 500px;
+            z-index: 2;
+        }
+
+        .hero-title {
+            font-size: 3rem;
+            font-weight: 300;
+            margin-bottom: 1.5rem;
+            line-height: 1.2;
+        }
+
+        .hero-title span {
+            font-weight: 400;
+            border-bottom: 2px solid var(--black);
+        }
+
+        .hero-text {
+            color: var(--text-light);
+            margin-bottom: 2rem;
+            font-size: 1.1rem;
+        }
+
+        .hero-btn {
+            background: var(--black);
+            color: var(--white);
             border: none;
-            padding: 5px 10px;
-            font-size: 16px;
-            border-radius: 5px;
+            padding: 1rem 2rem;
+            font-size: 0.9rem;
+            font-weight: 500;
+            letter-spacing: 1px;
             cursor: pointer;
-            margin-right: 10px;
+            transition: var(--transition);
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
         }
-        .cart-button:hover {
-            background-color: #e55039;
+
+        .hero-btn:hover {
+            background: #333333;
+            transform: translateY(-3px);
         }
-        /* Стили для кнопки личного кабинета */
-        .account-button {
-            background-color: #4caf50;
-            color: white;
-            border: none;
-            padding: 5px 10px;
-            font-size: 16px;
-            border-radius: 5px;
-            cursor: pointer;
-            margin-right: 10px;
+
+        .hero-image {
+            position: absolute;
+            right: 10%;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 40%;
+            max-width: 600px;
+            filter: drop-shadow(0 20px 30px rgba(0, 0, 0, 0.1));
         }
-        .account-button:hover {
-            background-color: #4caf50;
+
+        /* Коллекция */
+        .collection {
+            padding: 6rem 10%;
         }
-        /* Секция главного баннера */
-        .hero-section {
-            text-align: center;
-            background: url('https://via.placeholder.com/1920x400') no-repeat center center/cover;
-            color: #000000;
-            padding: 100px 20px;
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            margin-bottom: 3rem;
         }
-        .hero-section h1 {
-            font-size: 36px;
-            margin-bottom: 20px;
+
+        .section-title {
+            font-size: 1.8rem;
+            font-weight: 300;
         }
-        .hero-section p {
-            font-size: 18px;
+
+        .section-link {
+            color: var(--text-light);
+            text-decoration: none;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: var(--transition);
         }
-        /* Горизонтальная секция популярных товаров */
-        .popular-products-section {
-            padding: 20px;
-            overflow-x: auto;
-            white-space: nowrap;
+
+        .section-link:hover {
+            color: var(--black);
         }
+
+        .products-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 2rem;
+        }
+
         .product-card {
-            display: inline-block;
-            width: 200px;
-            background-color: #f9f9f9;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            padding: 15px;
-            margin-right: 10px;
-            text-align: center;
-            transition: transform 0.3s ease;
+            position: relative;
+            overflow: hidden;
+            transition: var(--transition);
         }
-        .product-card:last-child {
-            margin-right: 0;
+
+        .product-image {
+            width: 100%;
+            height: 350px;
+            background-color: var(--light-gray);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 1.5rem;
+            transition: var(--transition);
         }
-        .product-card img {
-            max-width: 100%;
-            height: auto;
-            border-radius: 5px;
+
+        .product-image img {
+            max-width: 80%;
+            max-height: 80%;
+            object-fit: contain;
+            transition: var(--transition);
         }
-        .product-card h3 {
-            margin: 10px 0;
-            font-size: 16px;
+
+        .product-card:hover .product-image {
+            transform: translateY(-10px);
         }
-        .product-card p {
-            font-size: 14px;
-            color: #666;
-        }
-        .product-card .price {
-            font-size: 18px;
-            color: #4CAF50;
-            font-weight: bold;
-        }
-        .product-card:hover {
+
+        .product-card:hover .product-image img {
             transform: scale(1.05);
         }
-        /* Информационные секции с ID для якорей */
-        section[id] {
-            scroll-margin-top: 80px; /* Отступ сверху при скролле */
-        }
-        /* Информационная секция */
-        .info-section {
-            padding: 20px;
-            background-color: #f4f4f4;
+
+        .product-info {
             text-align: center;
         }
+
+        .product-brand {
+            font-size: 0.8rem;
+            color: var(--text-light);
+            margin-bottom: 0.5rem;
+            letter-spacing: 1px;
+        }
+
+        .product-name {
+            font-size: 1.1rem;
+            font-weight: 400;
+            margin-bottom: 0.5rem;
+        }
+
+        .product-price {
+            font-size: 1rem;
+            font-weight: 500;
+            margin-bottom: 1rem;
+        }
+
+        .add-to-cart {
+            background: var(--black);
+            color: var(--white);
+            border: none;
+            padding: 0.8rem;
+            width: 100%;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .add-to-cart:hover {
+            background: #333333;
+        }
+
+        .add-to-cart:disabled {
+            background: var(--gray);
+            cursor: not-allowed;
+        }
+
+        /* Информационные секции */
+        .info-section {
+            padding: 5rem 10%;
+            background-color: var(--light-gray);
+            text-align: center;
+        }
+
         .info-section h2 {
-            font-size: 24px;
-            margin-bottom: 20px;
+            font-size: 1.8rem;
+            font-weight: 300;
+            margin-bottom: 2rem;
         }
+
         .info-section p {
-            font-size: 16px;
-            line-height: 1.6;
+            max-width: 800px;
+            margin: 0 auto 1.5rem;
+            color: var(--text-light);
         }
-        /* Модальное окно для авторизации */
+
+        /* Подвал */
+        footer {
+            background-color: var(--black);
+            color: var(--white);
+            padding: 5rem 10% 2rem;
+        }
+
+        .footer-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 3rem;
+            margin-bottom: 3rem;
+        }
+
+        .footer-logo {
+            font-size: 1.2rem;
+            font-weight: 300;
+            letter-spacing: 2px;
+            margin-bottom: 1rem;
+        }
+
+        .footer-logo span {
+            font-weight: 600;
+        }
+
+        .footer-text {
+            color: var(--gray);
+            font-size: 0.9rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .social-links {
+            display: flex;
+            gap: 1rem;
+        }
+
+        .social-link {
+            color: var(--gray);
+            font-size: 1rem;
+            transition: var(--transition);
+        }
+
+        .social-link:hover {
+            color: var(--white);
+        }
+
+        .footer-column h3 {
+            font-size: 1rem;
+            font-weight: 500;
+            margin-bottom: 1.5rem;
+            letter-spacing: 1px;
+        }
+
+        .footer-links {
+            list-style: none;
+        }
+
+        .footer-links li {
+            margin-bottom: 1rem;
+        }
+
+        .footer-links a {
+            color: var(--gray);
+            text-decoration: none;
+            font-size: 0.9rem;
+            transition: var(--transition);
+        }
+
+        .footer-links a:hover {
+            color: var(--white);
+        }
+
+        .footer-bottom {
+            text-align: center;
+            padding-top: 2rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            color: var(--gray);
+            font-size: 0.8rem;
+        }
+
+        /* Модальное окно */
         .modal {
             display: none;
             position: fixed;
@@ -202,150 +468,310 @@ function isProductInCart($pdo, $userId, $productId) {
             background-color: rgba(0, 0, 0, 0.5);
             justify-content: center;
             align-items: center;
-            z-index: 1000;
+            z-index: 2000;
         }
+
         .modal-content {
-            background-color: #fff;
-            padding: 20px;
-            border-radius: 5px;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-            width: 300px;
+            background-color: var(--white);
+            width: 100%;
+            max-width: 400px;
+            border-radius: 4px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        .modal-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--gray);
+            position: relative;
+        }
+
+        .modal-title {
+            font-size: 1.2rem;
+            font-weight: 500;
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 1.5rem;
+            right: 1.5rem;
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: var(--text-light);
+        }
+
+        .modal-body {
+            padding: 1.5rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+            color: var(--text-dark);
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 0.8rem;
+            border: 1px solid var(--gray);
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: var(--black);
+        }
+
+        .modal-footer {
+            padding: 1.5rem;
+            border-top: 1px solid var(--gray);
+            display: flex;
+            justify-content: flex-end;
+            gap: 1rem;
+        }
+
+        .modal-btn {
+            padding: 0.8rem 1.5rem;
+            border: none;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .modal-btn.primary {
+            background: var(--black);
+            color: var(--white);
+        }
+
+        .modal-btn.secondary {
+            background: var(--white);
+            color: var(--text-dark);
+            border: 1px solid var(--gray);
+        }
+
+        .error-message {
+            color: var(--error);
+            font-size: 0.8rem;
+            margin-top: 0.5rem;
             text-align: center;
         }
-        .modal-content h2 {
-            margin-bottom: 15px;
-            font-size: 20px;
+
+        /* Адаптивность */
+        @media (max-width: 1024px) {
+            .hero-image {
+                opacity: 0.5;
+                right: 5%;
+            }
         }
-        .modal-content form {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-        .modal-content input {
-            padding: 10px;
-            border: 1px solid #ccc;
-            border-radius: 5px;
-        }
-        .modal-content button {
-            padding: 10px;
-            border: none;
-            border-radius: 5px;
-            font-size: 16px;
-            cursor: pointer;
-        }
-        .modal-content button.login-button {
-            background-color: #4CAF50;
-            color: white;
-        }
-        .modal-content button.login-button:hover {
-            background-color: #45a049;
-        }
-        .modal-content button.close-button {
-            background-color: #ff6f61;
-            color: white;
-            margin-top: 10px;
-        }
-        .modal-content button.close-button:hover {
-            background-color: #e55039;
-        }
-        .error-message {
-            color: red;
-            font-size: 14px;
-            margin-top: 10px;
+
+        @media (max-width: 768px) {
+            nav {
+                display: none;
+            }
+
+            .hero {
+                flex-direction: column;
+                justify-content: center;
+                text-align: center;
+                padding-top: 6rem;
+            }
+
+            .hero-content {
+                max-width: 100%;
+                margin-bottom: 3rem;
+            }
+
+            .hero-image {
+                position: relative;
+                right: auto;
+                top: auto;
+                transform: none;
+                width: 100%;
+                margin-top: 2rem;
+                opacity: 1;
+            }
         }
     </style>
 </head>
 <body>
 <header>
-    <!-- Левая часть с меню -->
+    <div class="logo">MINIMAL <span>HORIZON</span></div>
     <nav>
         <a href="catalog.php">Каталог</a>
         <a href="#about">О нас</a>
         <a href="#contacts">Контакты</a>
     </nav>
-    <!-- Правая часть с кнопками корзины и входа -->
-    <div>
+    <div class="header-actions">
         <?php if ($isAuthenticated): ?>
-            <button class="cart-button" onclick="location.href='cart.php'">Корзина 🛒</button>
-            <button class="account-button" onclick="location.href='lk.php'">Личный кабинет</button>
+            <div style="position: relative;">
+                <button class="icon-btn" onclick="location.href='cart.php'">
+                    <i class="fas fa-shopping-bag"></i>
+                    <?php if ($cartCount > 0): ?>
+                        <span class="cart-count"><?= $cartCount ?></span>
+                    <?php endif; ?>
+                </button>
+            </div>
+            <button class="icon-btn" onclick="location.href='lk.php'"><i class="far fa-user"></i></button>
+            <button class="icon-btn" onclick="location.href='?logout=1'"><i class="fas fa-sign-out-alt"></i></button>
         <?php else: ?>
-            <button id="loginButton">Войти</button>
+            <button class="icon-btn" id="loginButton"><i class="far fa-user"></i></button>
         <?php endif; ?>
     </div>
 </header>
-<!-- Главный баннер -->
-<section class="hero-section">
-    <h1>Ищете идеальные часы?</h1>
-    <p style="color: #000000;">У нас есть широкий выбор на любой вкус и бюджет!</p>
+
+<section class="hero">
+    <div class="hero-content">
+        <h1 class="hero-title">Утончённость <span>в каждой детали</span></h1>
+        <p class="hero-text">
+            Часы Minimal Horizon — это сочетание безупречного дизайна и высокого качества.
+            Каждая модель создана для тех, кто ценит элегантность и функциональность.
+        </p>
+        <button class="hero-btn" onclick="location.href='catalog.php'">
+            <span>Исследовать коллекцию</span>
+            <i class="fas fa-arrow-right"></i>
+        </button>
+    </div>
+    <div class="hero-image">
+        <img src="https://images.unsplash.com/photo-1542496658-e33a6d0d50f6?ixlib=rb-1.2.1&auto=format&fit=crop&w=1000&q=80" alt="Minimal Watch">
+    </div>
 </section>
-<!-- Секция популярных товаров -->
-<section class="popular-products-section">
-    <h2 style="margin-bottom: 10px; text-align: center;">Наши товары</h2>
-    <div>
+
+<section class="collection">
+    <div class="section-header">
+        <h2 class="section-title">Популярные модели</h2>
+        <a href="catalog.php" class="section-link">
+            <span>Смотреть все</span>
+            <i class="fas fa-arrow-right"></i>
+        </a>
+    </div>
+    <div class="products-grid">
         <?php if (!empty($popularProducts)): ?>
             <?php foreach ($popularProducts as $product): ?>
                 <div class="product-card">
-                    <img src="uploads/<?= htmlspecialchars($product['image_path']) ?>" alt="<?= htmlspecialchars($product['name']) ?>">
-                    <h3><?= htmlspecialchars($product['name']) ?></h3>
-                    <p><strong>Бренд:</strong> <?= htmlspecialchars($product['brand_name']) ?></p>
-                    <p><strong>Цена:</strong> <?= number_format($product['price'], 2, '.', ' ') ?> ₽</p>
-                    <form method="POST" action="add_to_cart.php" onsubmit="return checkLogin(this)">
-                        <input type="hidden" name="product_id" value="<?= $product['id'] ?>">
-                        <button type="submit" class="login-button"
-                            <?= isProductInCart($pdo, $_SESSION['user_id'] ?? null, $product['id']) ? 'disabled title="Товар уже в корзине"' : '' ?>>
-                            <?= isProductInCart($pdo, $_SESSION['user_id'] ?? null, $product['id']) ? 'Добавлено' : 'Добавить в корзину' ?>
-                        </button>
-                    </form>
+                    <div class="product-image">
+                        <img src="uploads/<?= htmlspecialchars($product['image_path']) ?>" alt="<?= htmlspecialchars($product['name']) ?>">
+                    </div>
+                    <div class="product-info">
+                        <p class="product-brand"><?= htmlspecialchars($product['brand_name']) ?></p>
+                        <h3 class="product-name"><?= htmlspecialchars($product['name']) ?></h3>
+                        <p class="product-price"><?= number_format($product['price'], 0, '.', ' ') ?> ₽</p>
+                        <form method="POST" action="add_to_cart.php" onsubmit="return checkLogin(this)">
+                            <input type="hidden" name="product_id" value="<?= $product['id'] ?>">
+                            <button type="submit" class="add-to-cart"
+                                <?= isProductInCart($pdo, $_SESSION['user_id'] ?? null, $product['id']) ? 'disabled' : '' ?>>
+                                <?= isProductInCart($pdo, $_SESSION['user_id'] ?? null, $product['id']) ? 'В корзине' : 'Добавить в корзину' ?>
+                            </button>
+                        </form>
+                    </div>
                 </div>
             <?php endforeach; ?>
         <?php else: ?>
-            <p style="text-align: center;">Товары пока не добавлены.</p>
+            <p style="grid-column: 1 / -1; text-align: center;">Товары пока не добавлены</p>
         <?php endif; ?>
     </div>
 </section>
-<!-- О нас -->
-<section id="about" class="info-section">
-    <h2>О нашем магазине</h2>
-    <p>
-        Мы специализируемся на продаже высококачественных часов от ведущих мировых производителей.
-        В нашем ассортименте вы найдете как классические механические модели, так и современные умные часы.
-        Каждый клиент получает индивидуальный подход и гарантию качества.
-    </p>
-</section>
-<!-- Контакты -->
-<section id="contacts" class="info-section">
-    <h2>Свяжитесь с нами</h2>
-    <p>
-        По всем вопросам обращайтесь:<br>
-        📞 Телефон: +7 (999) 123-45-67<br>
-        📧 Email: info@watchstore.ru<br>
-        📍 Адрес: г. Москва, ул. Часовая, д. 5
-    </p>
-</section>
+
+
+
+
+<footer>
+    <div class="footer-grid">
+        <div>
+            <div class="footer-logo">MINIMAL <span>HORIZON</span></div>
+            <p class="footer-text">
+                Элегантные часы для современного образа жизни. Безупречное качество и дизайн.
+            </p>
+            <div class="social-links">
+                <a href="#" class="social-link"><i class="fab fa-instagram"></i></a>
+                <a href="#" class="social-link"><i class="fab fa-facebook-f"></i></a>
+                <a href="#" class="social-link"><i class="fab fa-pinterest"></i></a>
+            </div>
+        </div>
+        <div>
+            <h3>Магазин</h3>
+            <ul class="footer-links">
+                <li><a href="catalog.php">Каталог</a></li>
+                <li><a href="#about">О нас</a></li>
+                <li><a href="#contacts">Контакты</a></li>
+            </ul>
+        </div>
+        <div>
+            <h3>Информация</h3>
+            <ul class="footer-links">
+                <li><a href="#">Доставка и оплата</a></li>
+                <li><a href="#">Гарантия</a></li>
+                <li><a href="#">Возврат</a></li>
+            </ul>
+        </div>
+        <div>
+            <h3>Контакты</h3>
+            <ul class="footer-links">
+                <li>Москва, ул. Часовая, д. 5</li>
+                <li>+7 (999) 123-45-67</li>
+                <li>info@watchstore.ru</li>
+            </ul>
+        </div>
+    </div>
+    <div class="footer-bottom">
+        © 2023 Minimal Horizon. Все права защищены.
+    </div>
+</footer>
+
 <!-- Модальное окно для авторизации -->
 <div id="loginModal" class="modal">
     <div class="modal-content">
-        <h2>Авторизация</h2>
-        <form method="POST" action="login.php?redirect=index.php" id="login-form">
-            <label for="email">Email:</label>
-            <input type="email" id="email" name="email" required>
-            <label for="password">Пароль:</label>
-            <input type="password" id="password" name="password" required>
-            <button type="submit" class="login-button">Войти</button>
-            <p class="error-message" id="error-message"></p>
+        <div class="modal-header">
+            <h3 class="modal-title">Авторизация</h3>
+            <button class="modal-close" onclick="closeLoginModal()">×</button>
+        </div>
+        <form method="POST" action="login.php" id="login-form">
+            <input type="hidden" name="redirect" value="index.php">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="email">Email:</label>
+                    <input type="email" id="email" name="email" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Пароль:</label>
+                    <input type="password" id="password" name="password" required>
+                </div>
+                <p class="error-message" id="error-message">
+                    <?php
+                    // Вывод ошибки авторизации, если она есть
+                    if (isset($_SESSION['login_error'])) {
+                        echo $_SESSION['login_error'];
+                        unset($_SESSION['login_error']);
+                    }
+                    ?>
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="modal-btn secondary" onclick="closeLoginModal()">Закрыть</button>
+                <button type="submit" class="modal-btn primary">Войти</button>
+            </div>
         </form>
-        <button type="button" onclick="closeLoginModal()" class="close-button">Закрыть</button>
     </div>
 </div>
+
 <script>
     // Показать модальное окно
-    document.getElementById('loginButton')?.addEventListener('click', function () {
+    document.getElementById('loginButton')?.addEventListener('click', function() {
         document.getElementById('loginModal').style.display = 'flex';
     });
+
     // Закрыть модальное окно
     function closeLoginModal() {
         document.getElementById('loginModal').style.display = 'none';
     }
+
     // Проверка авторизации перед добавлением товара в корзину
     function checkLogin(form) {
         <?php if (!$isAuthenticated): ?>
@@ -355,17 +781,13 @@ function isProductInCart($pdo, $userId, $productId) {
         <?php endif; ?>
         return true;
     }
-    // После успешной авторизации перезагружаем страницу
-    <?php if (isset($_SESSION['user_id'])): ?>
-    sessionStorage.setItem('is_logged_in', 'true');
-    <?php else: ?>
-    sessionStorage.removeItem('is_logged_in');
-    <?php endif; ?>
-    function afterSuccessfulLogin() {
-        sessionStorage.setItem('is_logged_in', 'true');
-        closeLoginModal();
-        location.reload();
-    }
+
+    // Закрыть модальное окно при клике вне его
+    window.addEventListener('click', function(event) {
+        if (event.target === document.getElementById('loginModal')) {
+            closeLoginModal();
+        }
+    });
 </script>
 </body>
 </html>
