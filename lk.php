@@ -31,7 +31,7 @@ try {
 
     $isAuthenticated = isset($_SESSION['user_id']);
 
-// Обработка выхода из системы
+    // Обработка выхода из системы
     if (isset($_GET['logout'])) {
         session_unset();
         session_destroy();
@@ -83,14 +83,12 @@ try {
         }
     }
 
-
     $cartCount = 0;
     if ($isAuthenticated) {
         $stmt = $pdo->prepare("SELECT SUM(quantity) FROM cart WHERE user_id = ?");
         $stmt->execute([$_SESSION['user_id']]);
         $cartCount = $stmt->fetchColumn() ?? 0;
     }
-
 
 } catch (PDOException $e) {
     die("Ошибка подключения к базе данных: " . $e->getMessage());
@@ -100,19 +98,27 @@ try {
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Личный Кабинет</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css ">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Личный Кабинет | Minimal Horizon</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
         :root {
             --black: #111111;
             --white: #ffffff;
-            --gray: #ffffff;
+            --gray: #e0e0e0;
             --light-gray: #f5f5f5;
             --accent: #000000;
             --text-dark: #333333;
             --text-light: #777777;
             --transition: all 0.3s cubic-bezier(0.25, 0.1, 0.25, 1);
             --error: #e74c3c;
+            --success: #2ecc71;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
 
         body {
@@ -120,8 +126,10 @@ try {
             color: var(--text-dark);
             background-color: var(--white);
             line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
         }
 
+        /* Шапка */
         header {
             position: fixed;
             top: 0;
@@ -150,6 +158,7 @@ try {
         nav {
             display: flex;
             gap: 2rem;
+            margin-right: 1400px;
         }
 
         nav a {
@@ -182,409 +191,414 @@ try {
         }
 
 
-        .editable {
-            display: none;
-        }
 
-        #editModeOn {
-            display: block;
-        }
-
-        #editModeOff {
-            display: block;
-        }
-
-        .icon-btn {
+        .icon-btn-cart {
             background: none;
             border: none;
             color: var(--text-dark);
             font-size: 1.1rem;
             cursor: pointer;
             transition: var(--transition);
+            width:50px;
+
+
         }
 
-        .icon-btn:hover {
+        .icon-btn-logout {
+            background: none;
+            border: none;
+            color: var(--text-dark);
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: var(--transition);
+
+
+        }
+
+        .icon-btn-cart:hover {
             color: var(--black);
             transform: translateY(-2px);
+
         }
 
-        .upload-button {
-            background-color: #000000;
-            color: white;
-            border: none;
-            padding: 10px 12px;
-            font-size: 14px;
-            border-radius: 6px;
-            cursor: pointer;
-            margin-left: 15px;
-            transition: background-color 0.3s;
+        .icon-btn-logout:hover {
+            color: var(--black);
+            transform: translateY(-2px);
+
         }
 
-        .upload-button:hover {
-            background-color: #2980b9;
-        }
-
-        .header-actions {
+        .cart-count {
+            position: absolute;
+            top: -6px;
+            left: 20px;
+            background-color: var(--black);
+            color: var(--white);
+            border-radius: 50%;
+            width: 18px;
+            height: 18px;
+            font-size: 10px;
             display: flex;
-            gap: 1.5rem;
             align-items: center;
+            justify-content: center;
         }
 
-        .header-actions button {
-            background: none;
+        .logout-button {
+            background: var(--black);
+            color: var(--white);
             border: none;
-            color: var(--text-dark);
-            font-size: 1.1rem;
+            padding: 0.8rem 1.5rem;
+            font-size: 0.9rem;
             cursor: pointer;
             transition: var(--transition);
-        }
-
-        .container {
             display: flex;
-            margin-top: 80px;
-            padding: 2rem 10%;
-            margin-left: 270px; /* Ширина .sidebar + небольшой отступ */
+            align-items: center;
+            gap: 0.5rem;
         }
 
+        .logout-button:hover {
+            background: #333333;
+        }
+
+        /* Основной контейнер */
+        .user-container {
+            display: flex;
+            min-height: calc(100vh - 80px);
+            margin-top: 80px;
+        }
+
+        /* Сайдбар */
         .sidebar {
             width: 250px;
-            background-color: #f5f5f5; /* Серый фон */
-            padding: 1.5rem;
-            border-radius: 8px;
-            position: fixed; /* Фиксируем позицию */
-            top: 0;           /* От верхнего края */
-            left: 0%;         /* Где-то от левого края (можно изменить) */
-            height: 100vh;    /* Высота экрана */
-            overflow-y: auto; /* Возможность скролла внутри меню при длинном содержимом */
-            z-index: 999;     /* Чтобы поверх основного контента */
+            background-color: var(--light-gray);
+            padding: 2rem 1rem;
+            border-right: 1px solid var(--gray);
         }
 
         .sidebar h3 {
-            font-size: 1.2rem;
-            margin-bottom: 1rem;
+            font-size: 1.1rem;
+            font-weight: 500;
+            margin-bottom: 1.5rem;
+            padding-left: 0.5rem;
         }
 
         .sidebar ul {
             list-style: none;
-            padding: 0;
         }
 
         .sidebar li {
-            margin-bottom: 0.8rem;
+            margin-bottom: 0.5rem;
         }
 
         .sidebar a {
-            text-decoration: none;
+            display: block;
+            padding: 0.8rem 0.5rem;
             color: var(--text-dark);
-            font-weight: 400;
+            text-decoration: none;
+            font-size: 0.9rem;
+            border-radius: 4px;
             transition: var(--transition);
         }
 
-        .sidebar a:hover {
+        .sidebar a:hover, .sidebar a.active {
+            background-color: var(--gray);
             color: var(--black);
         }
 
+        /* Основное содержимое */
         .content {
-            flex-grow: 1;
+            flex: 1;
+            padding: 2rem 3rem;
         }
 
         .section {
             display: none;
+            margin-bottom: 3rem;
         }
 
         .section.active {
             display: block;
         }
 
+        .section h2 {
+            font-size: 1.8rem;
+            font-weight: 300;
+            margin-bottom: 2rem;
+        }
+
+        /* Формы */
+        .profile-form {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+            color: var(--text-dark);
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 0.8rem;
+            border: 1px solid var(--gray);
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: var(--black);
+        }
+
+        .form-group .file-input {
+            padding: 0.5rem;
+        }
+
+        .submit-btn {
+            background: var(--black);
+            color: var(--white);
+            border: none;
+            padding: 1rem 2rem;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .submit-btn:hover {
+            background: #333333;
+        }
+
+        /* Сообщения */
         .message {
             padding: 1rem;
-            margin-bottom: 1rem;
+            margin-bottom: 1.5rem;
             border-radius: 4px;
+            font-size: 0.9rem;
         }
 
         .message.success {
-            background-color: #d4edda;
-            color: #155724;
+            background-color: rgba(46, 204, 113, 0.2);
+            color: var(--success);
+            border: 1px solid var(--success);
         }
 
         .message.error {
-            background-color: #f8d7da;
-            color: #721c24;
+            background-color: rgba(231, 76, 60, 0.2);
+            color: var(--error);
+            border: 1px solid var(--error);
         }
 
-        form.profile-form {
-            background-color: var(--light-gray);
-            padding: 2rem;
-            border-radius: 4px;
-            max-width: 500px;
-        }
-
-        form label {
-            display: block;
-            margin-bottom: 0.5rem;
-            font-weight: bold;
-        }
-
-        form input[type="text"] {
-            width: 100%;
-            padding: 0.8rem;
-            margin-bottom: 1rem;
-            border: 1px solid var(--gray);
-            border-radius: 4px;
-        }
-
-        form button {
-            background-color: var(--black);
-            color: var(--white);
-            padding: 0.8rem 1.5rem;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-
-        form button:hover {
-            background-color: #333333;
-        }
-
-        .profile-avatar {
+        /* Аватар */
+        .avatar-container {
             display: flex;
             align-items: center;
-            margin-bottom: 1rem;
+            margin-bottom: 2rem;
         }
 
-        .profile-avatar img {
-            width: 80px;
-            height: 80px;
+        .avatar {
+            width: 100px;
+            height: 100px;
             border-radius: 50%;
             object-fit: cover;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+            margin-right: 1.5rem;
+            border: 2px solid var(--gray);
         }
 
-        .profile-avatar input[type="file"] {
-            margin-left: 1rem;
-        }
-
-        footer {
-            background-color: var(--black);
-            color: var(--white);
-            padding: 5rem 10% 2rem;
-        }
-
-        .footer-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 3rem;
-            margin-bottom: 3rem;
-        }
-
-        .footer-logo {
-            font-size: 1.2rem;
-            font-weight: 300;
-            letter-spacing: 2px;
-            margin-bottom: 1rem;
-        }
-
-        .footer-logo span {
-            font-weight: 600;
-        }
-
-        .footer-text {
-            color: var(--gray);
-            font-size: 0.9rem;
-            margin-bottom: 1.5rem;
-        }
-
-        .social-links {
+        .avatar-upload {
             display: flex;
-            gap: 1rem;
+            flex-direction: column;
         }
 
-        .social-link {
-            color: var(--gray);
-            font-size: 1rem;
-            transition: var(--transition);
+        .avatar-upload label {
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+            color: var(--text-dark);
         }
 
-        .social-link:hover {
-            color: var(--white);
-        }
-
-        .footer-column h3 {
-            font-size: 1rem;
-            font-weight: 500;
-            margin-bottom: 1.5rem;
-            letter-spacing: 1px;
-        }
-
-        .footer-links {
-            list-style: none;
-        }
-
-        .footer-links li {
+        /* Редактируемые поля */
+        .view-mode {
+            display: block;
+            padding: 0.8rem;
+            background-color: var(--light-gray);
+            border-radius: 4px;
             margin-bottom: 1rem;
         }
 
-        .footer-links a {
-            color: var(--gray);
-            text-decoration: none;
-            font-size: 0.9rem;
-            transition: var(--transition);
+        .edit-mode {
+            display: none;
         }
 
-        .footer-links a:hover {
-            color: var(--white);
+        .editing .view-mode {
+            display: none;
         }
 
-        .footer-bottom {
-            text-align: center;
-            padding-top: 2rem;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
-            color: var(--gray);
-            font-size: 0.8rem;
+        .editing .edit-mode {
+            display: block;
         }
 
+        /* Адаптивность */
+        @media (max-width: 768px) {
+            .user-container {
+                flex-direction: column;
+            }
 
+            .sidebar {
+                width: 100%;
+                border-right: none;
+                border-bottom: 1px solid var(--gray);
+            }
+
+            .content {
+                padding: 1.5rem;
+            }
+        }
     </style>
 </head>
 <body>
-<header>
-    <div class="logo">MINIMAL <span>HORIZON</span></div>
-    <nav>
-        <a href="index.php" class="active">Главная</a>
 
+<header>
+    <div class="logo">Watch <span>Store</span></div>
+    <nav>
+        <a href="catalog.php">Каталог</a>
     </nav>
 
 
+
+
+
     <div class="header-actions">
-        <?php if ($isAuthenticated): ?>
+
             <div style="position: relative;">
-                <button class="icon-btn" onclick="location.href='cart.php'">
+                <button class="icon-btn-cart" onclick="location.href='cart.php'">
                     <i class="fas fa-shopping-bag"></i>
                     <?php if ($cartCount > 0): ?>
                         <span class="cart-count"><?= $cartCount ?></span>
                     <?php endif; ?>
                 </button>
-            </div>
-            <button class="icon-btn" onclick="location.href='?logout=1'"><i class="fas fa-sign-out-alt"></i></button>
-            <button class="icon-btn" onclick="location.href='?logout=1'"><i class="fas fa-sign-out-alt"></i></button>
-            <button class="icon-btn" onclick="location.href='?logout=1'"><i class="fas fa-sign-out-alt"></i></button>
 
-        <?php else: ?>
-            <button class="icon-btn" id="loginButton"><i class="far fa-user"></i></button>
-        <?php endif; ?>
+              <button class="icon-btn-logout" onclick="location.href='?logout=1'"><i class="fas fa-sign-out-alt"></i></button>
+
+
     </div>
+
 </header>
 
-<div class="container">
+<div class="user-container">
+    <!-- Сайдбар с навигацией -->
     <div class="sidebar">
-        <h3>Меню</h3>
+        <h3>Меню пользователя</h3>
         <ul>
-            <h3>Меню</h3>
-            <li><a href="#profile" class="active">О себе</a></li>
-            <li><a href="#orders">Заказы</a></li>
+            <li><a href="#profile" class="active">Профиль</a></li>
+            <li><a href="#orders">Мои заказы</a></li>
         </ul>
     </div>
 
+    <!-- Основной контент -->
     <div class="content">
-        <!-- Раздел "О себе" -->
+        <!-- Раздел "Профиль" -->
         <section id="profile" class="section active">
-            <h2>О себе</h2>
-            <?php if ($success): ?>
+            <h2>Профиль</h2>
+            <?php if (!empty($success)): ?>
                 <div class="message success"><?= htmlspecialchars($success) ?></div>
-            <?php elseif ($error): ?>
+            <?php endif; ?>
+            <?php if (!empty($error)): ?>
                 <div class="message error"><?= htmlspecialchars($error) ?></div>
             <?php endif; ?>
 
-
-            <form method="post" action="" enctype="multipart/form-data">
-                <div class="profile-avatar">
-                    <img id="avatar" src="<?= !empty($user['avatar_path']) ? 'Avatars/' . htmlspecialchars($user['avatar_path']) : 'https://via.placeholder.com/100x100 ' ?>" alt="Аватар">
-
-                    <div id="avatar-upload" style="display: none;">
-                        <label for="upload-avatar" class="upload-button">Выбрать фото</label>
-                        <input type="file" id="upload-avatar" name="avatar" accept="image/*" style="display: none;">
-                        <small>После выбора файла он сразу загрузится</small>
+            <form method="POST" action="" class="profile-form" enctype="multipart/form-data">
+                <div class="avatar-container">
+                    <img src="<?= !empty($user['avatar_path']) ? 'Avatars/' . htmlspecialchars($user['avatar_path']) : 'https://via.placeholder.com/100x100' ?>" alt="Аватар" class="avatar" id="avatar-preview">
+                    <div class="avatar-upload">
+                        <label for="avatar">Изменить аватар</label>
+                        <input type="file" id="avatar" name="avatar" accept="image/*" class="file-input">
                     </div>
                 </div>
 
-                <p><strong>ФИО:</strong><br>
-                    <span id="fullName"><?= htmlspecialchars($user['full_name']) ?></span>
-                    <input type="text" id="edit-fullName" name="full_name" value="<?= htmlspecialchars($user['full_name']) ?>" class="editable">
-                </p>
-
-                <p><strong>Номер телефона:</strong><br>
-                    <span id="phone"><?= htmlspecialchars($user['phone']) ?></span>
-                    <input type="text" id="edit-phone" name="phone" value="<?= htmlspecialchars($user['phone']) ?>" class="editable">
-                </p>
-
-                <p><strong>Email:</strong><br>
-                    <span id="email"><?= htmlspecialchars($user['email']) ?></span>
-                    <input type="text" id="edit-email" name="email" value="<?= htmlspecialchars($user['email']) ?>" class="editable">
-                </p>
-
-                <div class="buttons">
-                    <button type="button" id="editBtn" class="btn">Редактировать</button>
-                    <button type="submit" name="save_profile" id="saveBtn" class="btn" style="display:none;">Сохранить</button>
+                <div class="form-group">
+                    <label for="full_name">ФИО:</label>
+                    <div class="view-mode"><?= htmlspecialchars($user['full_name']) ?></div>
+                    <input type="text" id="full_name" name="full_name" value="<?= htmlspecialchars($user['full_name']) ?>" class="edit-mode form-control">
                 </div>
+
+                <div class="form-group">
+                    <label for="phone">Телефон:</label>
+                    <div class="view-mode"><?= htmlspecialchars($user['phone']) ?></div>
+                    <input type="text" id="phone" name="phone" value="<?= htmlspecialchars($user['phone']) ?>" class="edit-mode form-control">
+                </div>
+
+                <div class="form-group">
+                    <label for="email">Email:</label>
+                    <div class="view-mode"><?= htmlspecialchars($user['email']) ?></div>
+                    <input type="text" id="email" name="email" value="<?= htmlspecialchars($user['email']) ?>" class="edit-mode form-control">
+                </div>
+
+                <button type="button" id="edit-btn" class="submit-btn">Редактировать</button>
+                <button type="submit" name="save_profile" id="save-btn" class="submit-btn" style="display: none;">Сохранить</button>
             </form>
-
-
         </section>
 
-        <!-- Раздел "Заказы" -->
+        <!-- Раздел "Мои заказы" -->
         <section id="orders" class="section">
-            <h2>Ваши заказы</h2>
+            <h2>Мои заказы</h2>
             <p>На данный момент список ваших заказов пуст.</p>
         </section>
     </div>
 </div>
 
-
-
 <script>
-    const editBtn = document.getElementById('editBtn');
-    const saveBtn = document.getElementById('saveBtn');
-    const fields = ['fullName', 'phone', 'email'];
-    const avatarUpload = document.getElementById('avatar-upload');
+    // Переключение между разделами
+    const sidebarLinks = document.querySelectorAll('.sidebar a');
+    const sections = document.querySelectorAll('.section');
 
-    editBtn.addEventListener('click', () => {
-        // Переключение видимости полей
-        fields.forEach(id => {
-            document.getElementById(id).style.display = 'none';
-            document.getElementById('edit-' + id).style.display = 'block';
+    sidebarLinks.forEach(link => {
+        link.addEventListener('click', function (e) {
+            e.preventDefault();
+
+            // Удалить активный класс у всех ссылок
+            sidebarLinks.forEach(l => l.classList.remove('active'));
+            // Добавить активный класс к выбранной ссылке
+            this.classList.add('active');
+
+            // Скрыть все разделы
+            sections.forEach(section => section.classList.remove('active'));
+
+            // Показать выбранный раздел
+            const targetId = this.getAttribute('href').substring(1);
+            document.getElementById(targetId).classList.add('active');
         });
+    });
 
-        avatarUpload.style.display = 'block';
-        saveBtn.style.display = 'inline-block';
+    // Редактирование профиля
+    const editBtn = document.getElementById('edit-btn');
+    const saveBtn = document.getElementById('save-btn');
+    const form = document.querySelector('.profile-form');
+
+    editBtn.addEventListener('click', function() {
+        form.classList.add('editing');
         editBtn.style.display = 'none';
-    });
-</script>
-
-<script>
-    // Показать модальное окно
-    document.getElementById('loginButton')?.addEventListener('click', function() {
-        document.getElementById('loginModal').style.display = 'flex';
+        saveBtn.style.display = 'inline-block';
     });
 
-    // Закрыть модальное окно
-    function closeLoginModal() {
-        document.getElementById('loginModal').style.display = 'none';
-    }
+    // Предпросмотр аватара
+    const avatarInput = document.getElementById('avatar');
+    const avatarPreview = document.getElementById('avatar-preview');
 
-    // Проверка авторизации перед добавлением товара в корзину
-    function checkLogin(form) {
-        <?php if (!$isAuthenticated): ?>
-        alert('Для добавления товара в корзину необходимо авторизоваться.');
-        document.getElementById('loginModal').style.display = 'flex';
-        return false;
-        <?php endif; ?>
-        return true;
-    }
-
-    // Закрыть модальное окно при клике вне его
-    window.addEventListener('click', function(event) {
-        if (event.target === document.getElementById('loginModal')) {
-            closeLoginModal();
+    avatarInput.addEventListener('change', function() {
+        const file = this.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                avatarPreview.src = e.target.result;
+            }
+            reader.readAsDataURL(file);
         }
     });
 </script>

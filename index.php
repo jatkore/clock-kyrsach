@@ -57,7 +57,7 @@ if ($isAuthenticated) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Minimal Horizon | Утончённые часы</title>
+    <title>Watch store | Утончённые часы</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
         :root {
@@ -115,6 +115,8 @@ if ($isAuthenticated) {
         nav {
             display: flex;
             gap: 2rem;
+            margin-right: 1200px;
+
         }
 
         nav a {
@@ -125,6 +127,7 @@ if ($isAuthenticated) {
             letter-spacing: 1px;
             transition: var(--transition);
             position: relative;
+
         }
 
         nav a:hover {
@@ -238,7 +241,7 @@ if ($isAuthenticated) {
 
         .hero-image {
             position: absolute;
-            right: 10%;
+            right: 19%;
             top: 50%;
             transform: translateY(-50%);
             width: 40%;
@@ -305,6 +308,7 @@ if ($isAuthenticated) {
             max-height: 80%;
             object-fit: contain;
             transition: var(--transition);
+
         }
 
         .product-card:hover .product-image {
@@ -603,10 +607,9 @@ if ($isAuthenticated) {
 </head>
 <body>
 <header>
-    <div class="logo">MINIMAL <span>HORIZON</span></div>
+    <div class="logo">Watch  <span> store </span></div>
     <nav>
         <a href="catalog.php">Каталог</a>
-        <a href="#about">О нас</a>
         <a href="#contacts">Контакты</a>
     </nav>
     <div class="header-actions">
@@ -627,15 +630,15 @@ if ($isAuthenticated) {
     </div>
 </header>
 
-<section class="hero">
+<section id="about" class="hero">
     <div class="hero-content">
         <h1 class="hero-title">Утончённость <span>в каждой детали</span></h1>
         <p class="hero-text">
-            Часы Minimal Horizon — это сочетание безупречного дизайна и высокого качества.
+            Часы Watch store — это сочетание безупречного дизайна и высокого качества.
             Каждая модель создана для тех, кто ценит элегантность и функциональность.
         </p>
         <button class="hero-btn" onclick="location.href='catalog.php'">
-            <span>Исследовать коллекцию</span>
+            <span>Полный аасортимент</span>
             <i class="fas fa-arrow-right"></i>
         </button>
     </div>
@@ -685,7 +688,8 @@ if ($isAuthenticated) {
 <footer>
     <div class="footer-grid">
         <div>
-            <div class="footer-logo">MINIMAL <span>HORIZON</span></div>
+            <section id="contacts">
+            <div class="footer-logo">Watch store <span></span></div>
             <p class="footer-text">
                 Элегантные часы для современного образа жизни. Безупречное качество и дизайн.
             </p>
@@ -694,6 +698,7 @@ if ($isAuthenticated) {
                 <a href="#" class="social-link"><i class="fab fa-facebook-f"></i></a>
                 <a href="#" class="social-link"><i class="fab fa-pinterest"></i></a>
             </div>
+            </section>
         </div>
         <div>
             <h3>Магазин</h3>
@@ -705,23 +710,23 @@ if ($isAuthenticated) {
         </div>
         <div>
             <h3>Информация</h3>
-            <ul class="footer-links">
+            <ul  class="footer-links">
                 <li><a href="#">Доставка и оплата</a></li>
-                <li><a href="#">Гарантия</a></li>
-                <li><a href="#">Возврат</a></li>
+                <li><a href="#garant">Гарантия</a></li>
+
             </ul>
         </div>
         <div>
             <h3>Контакты</h3>
             <ul class="footer-links">
-                <li>Москва, ул. Часовая, д. 5</li>
-                <li>+7 (999) 123-45-67</li>
+                <li>Москва, ул. Часовая, д. 88</li>
+                <li>+7 (999) 999-99-99</li>
                 <li>info@watchstore.ru</li>
             </ul>
         </div>
     </div>
     <div class="footer-bottom">
-        © 2023 Minimal Horizon. Все права защищены.
+
     </div>
 </footer>
 

@@ -185,8 +185,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_to_cart']) && iss
         :root {
             --black: #111111;
             --white: #ffffff;
-            --gray: #e0e0e0;
-            --light-gray: #f5f5f5;
+            --gray: #000000;
+            --light-gray: #ffffff;
             --accent: #000000;
             --text-dark: #333333;
             --text-light: #777777;
