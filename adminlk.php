@@ -24,7 +24,6 @@ try {
     die("Ошибка подключения к базе данных: " . $e->getMessage());
 }
 
-
 $isAuthenticated = isset($_SESSION['user_id']);
 
 // Обработка выхода из системы
@@ -60,16 +59,17 @@ $totalRevenue = $totalRevenueStmt->fetch(PDO::FETCH_ASSOC)['total_revenue'] ?? 0
 $orderCountStmt = $pdo->query("SELECT COUNT(*) AS order_count FROM Orders");
 $orderCount = $orderCountStmt->fetch(PDO::FETCH_ASSOC)['order_count'] ?? 0;
 
-$topProductsStmt = $pdo->query("SELECT p.name, SUM(o.quantity) AS total_quantity 
-                                 FROM Orders o 
-                                 JOIN Product p ON o.product_id = p.id 
-                                 GROUP BY o.product_id 
-                                 ORDER BY total_quantity DESC 
-                                 LIMIT 3");
+$topProductsStmt = $pdo->query("
+    SELECT 
+        product_name AS name, 
+        SUM(quantity) AS total_quantity
+    FROM Orders
+    GROUP BY product_name
+    ORDER BY total_quantity DESC
+    LIMIT 3
+");
 $topProducts = $topProductsStmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Обработка форм добавления
-#include 'admin_form_handlers.php'; // Здесь можно вынести обработчики POST-запросов
 // Обработка формы добавления товара
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_product'])) {
     $productName = $_POST['name'] ?? '';
@@ -82,48 +82,73 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_product'])) {
     $quantity = $_POST['quantity'] ?? '';
     $imagePath = '';
 
-    if (isset($_FILES['image']) && $_FILES['image']['error'] === UPLOAD_ERR_OK) {
+    // Обработка загрузки изображения
+    $imagePath = '';
+    if (isset($_FILES['image'])) {
         $uploadDir = 'uploads/';
         if (!is_dir($uploadDir)) {
             mkdir($uploadDir, 0777, true);
         }
-        $fileName = uniqid() . '-' . basename($_FILES['image']['name']);
-        $filePath = $uploadDir . $fileName;
-        if (move_uploaded_file($_FILES['image']['tmp_name'], $filePath)) {
-            $imagePath = $fileName;
+
+        // Проверки файла
+        $allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+        $maxFileSize = 5 * 1024 * 1024; // 5MB
+        $fileType = $_FILES['image']['type'];
+        $fileSize = $_FILES['image']['size'];
+        $fileError = $_FILES['image']['error'];
+
+        if ($fileError === UPLOAD_ERR_OK) {
+            if (!in_array($fileType, $allowedTypes)) {
+                $errorProduct = "Разрешены только файлы изображений (JPEG, PNG, GIF, WEBP).";
+            } elseif ($fileSize > $maxFileSize) {
+                $errorProduct = "Файл слишком большой. Максимальный размер: 5MB.";
+            } else {
+                // Генерируем уникальное имя файла
+                $fileExt = pathinfo($_FILES['image']['name'], PATHINFO_EXTENSION);
+                $fileName = uniqid('img_', true) . '.' . $fileExt;
+                $filePath = $uploadDir . $fileName;
+
+                if (move_uploaded_file($_FILES['image']['tmp_name'], $filePath)) {
+                    $imagePath = $fileName;
+                } else {
+                    $errorProduct = "Ошибка при загрузке изображения на сервер.";
+                }
+            }
+        } elseif ($fileError === UPLOAD_ERR_NO_FILE) {
+            $errorProduct = "Пожалуйста, выберите изображение товара.";
         } else {
-            $errorProduct = "Ошибка при загрузке изображения.";
+            $errorProduct = "Ошибка при загрузке файла. Код ошибки: " . $fileError;
         }
-    } else {
-        $errorProduct = "Пожалуйста, выберите изображение.";
     }
 
-    if (
-        empty($productName) ||
-        empty($brandName) ||
-        empty($colorName) ||
-        empty($typeName) ||
-        empty($viewName) ||
-        empty($gender) ||
-        empty($price) ||
-        empty($quantity) ||
-        empty($imagePath)
-    ) {
-        $errorProduct = "Пожалуйста, заполните все поля.";
-    } else {
-        try {
-            $stmt = $pdo->prepare("INSERT INTO Product (name, brand_name, color_name, type_name, view_name, gender, price, quantity, image_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-            $stmt->execute([$productName, $brandName, $colorName, $typeName, $viewName, $gender, $price, $quantity, $imagePath]);
-            $successProduct = "Товар успешно добавлен!";
-        } catch (PDOException $e) {
-            $errorProduct = "Ошибка при добавлении товара: " . $e->getMessage();
+    // Проверка остальных полей
+    if (empty($errorProduct)) {
+        if (empty($productName) || empty($brandName) || empty($colorName) ||
+            empty($typeName) || empty($viewName) || empty($gender) ||
+            empty($price) || empty($quantity) || empty($imagePath)) {
+            $errorProduct = "Пожалуйста, заполните все поля.";
+        } elseif (!is_numeric($price) || $price <= 0) {
+            $errorProduct = "Цена должна быть положительным числом.";
+        } elseif (!is_numeric($quantity) || $quantity <= 0) {
+            $errorProduct = "Количество должно быть положительным числом.";
+        } else {
+            try {
+                $stmt = $pdo->prepare("INSERT INTO Product (name, brand_name, color_name, type_name, view_name, gender, price, quantity, image_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                $stmt->execute([$productName, $brandName, $colorName, $typeName, $viewName, $gender, $price, $quantity, $imagePath]);
+                $successProduct = "Товар успешно добавлен!";
+
+                // Очищаем поля формы после успешного добавления
+                $_POST = array();
+            } catch (PDOException $e) {
+                $errorProduct = "Ошибка при добавлении товара: " . $e->getMessage();
+            }
         }
     }
 }
 
 // Обработка формы добавления бренда
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_brand'])) {
-    $brandName = $_POST['brand_name'] ?? '';
+    $brandName = trim($_POST['brand_name'] ?? '');
     if (empty($brandName)) {
         $errorBrand = "Введите название бренда.";
     } else {
@@ -131,6 +156,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_brand'])) {
             $stmt = $pdo->prepare("INSERT INTO Brand (name) VALUES (?)");
             $stmt->execute([$brandName]);
             $successBrand = "Бренд успешно добавлен!";
+            $_POST['brand_name'] = '';
         } catch (PDOException $e) {
             $errorBrand = "Ошибка при добавлении бренда: " . $e->getMessage();
         }
@@ -139,7 +165,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_brand'])) {
 
 // Обработка формы добавления цвета
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_color'])) {
-    $colorName = $_POST['color_name'] ?? '';
+    $colorName = trim($_POST['color_name'] ?? '');
     if (empty($colorName)) {
         $errorColor = "Введите название цвета.";
     } else {
@@ -147,6 +173,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_color'])) {
             $stmt = $pdo->prepare("INSERT INTO Color (name) VALUES (?)");
             $stmt->execute([$colorName]);
             $successColor = "Цвет успешно добавлен!";
+            $_POST['color_name'] = '';
         } catch (PDOException $e) {
             $errorColor = "Ошибка при добавлении цвета: " . $e->getMessage();
         }
@@ -155,7 +182,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_color'])) {
 
 // Обработка формы добавления типа
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_type'])) {
-    $typeName = $_POST['type_name'] ?? '';
+    $typeName = trim($_POST['type_name'] ?? '');
     if (empty($typeName)) {
         $errorType = "Введите название типа.";
     } else {
@@ -163,6 +190,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_type'])) {
             $stmt = $pdo->prepare("INSERT INTO Type (name) VALUES (?)");
             $stmt->execute([$typeName]);
             $successType = "Тип успешно добавлен!";
+            $_POST['type_name'] = '';
         } catch (PDOException $e) {
             $errorType = "Ошибка при добавлении типа: " . $e->getMessage();
         }
@@ -171,7 +199,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_type'])) {
 
 // Обработка формы добавления вида
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_view'])) {
-    $viewName = $_POST['view_name'] ?? '';
+    $viewName = trim($_POST['view_name'] ?? '');
     if (empty($viewName)) {
         $errorView = "Введите название вида.";
     } else {
@@ -179,18 +207,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_view'])) {
             $stmt = $pdo->prepare("INSERT INTO View (name) VALUES (?)");
             $stmt->execute([$viewName]);
             $successView = "Вид успешно добавлен!";
+            $_POST['view_name'] = '';
         } catch (PDOException $e) {
             $errorView = "Ошибка при добавлении вида: " . $e->getMessage();
         }
     }
 }
 ?>
+
 <!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Личный Кабинет Администратора | Minimal Horizon</title>
+    <title>Личный Кабинет Администратора | Watch Store</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
         :root {
@@ -249,6 +279,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_view'])) {
         nav {
             display: flex;
             gap: 2rem;
+            margin-right: 1420px;
         }
 
         nav a {
@@ -510,25 +541,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_view'])) {
                 grid-template-columns: 1fr;
             }
         }
+
+        /* Предпросмотр изображения */
+        .image-preview {
+            margin-top: 1rem;
+            display: none;
+        }
+
+        .image-preview img {
+            max-width: 200px;
+            max-height: 200px;
+            border: 1px solid var(--gray);
+            border-radius: 4px;
+        }
     </style>
 </head>
 <body>
 
 <header>
-    <div class="logo">MINIMAL <span>HORIZON</span></div>
+    <a href="index.php" class="logo">Watch <span>Store</span></a>
     <nav>
-        <a href="index.php">Главная</a>
-        <a href="catalog.php">Каталог</a>
+        <a href="catalog.php" class="nav">Каталог</a>
     </nav>
     <div class="header-actions">
         <?php if ($isAuthenticated): ?>
-
-                </button>
-            </div>
             <button class="icon-btn" onclick="location.href='?logout=1'"><i class="fas fa-sign-out-alt"></i></button>
-
-        <?php else: ?>
-            <button class="icon-btn" id="loginButton"><i class="far fa-user"></i></button>
         <?php endif; ?>
     </div>
 </header>
@@ -576,7 +613,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_view'])) {
             </div>
         </section>
 
-        <!-- Раздел "Добавление товаров" -->
+        <!-- Раздел добавления товара -->
         <section id="add-product" class="section">
             <h2>Добавить товар</h2>
             <?php if (!empty($successProduct)): ?>
@@ -589,7 +626,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_view'])) {
                 <input type="hidden" name="add_product">
                 <div class="form-group">
                     <label for="product-name">Название товара:</label>
-                    <input type="text" id="product-name" name="name" required>
+                    <input type="text" id="product-name" name="name" value="<?= htmlspecialchars($_POST['name'] ?? '') ?>" required>
                 </div>
 
                 <div class="form-group">
@@ -597,7 +634,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_view'])) {
                     <select id="product-brand" name="brand" required>
                         <option value="" disabled selected>Выберите бренд</option>
                         <?php foreach ($brands as $brand): ?>
-                            <option value="<?= htmlspecialchars($brand['name']) ?>"><?= htmlspecialchars($brand['name']) ?></option>
+                            <option value="<?= htmlspecialchars($brand['name']) ?>" <?= isset($_POST['brand']) && $_POST['brand'] === $brand['name'] ? 'selected' : '' ?>>
+                                <?= htmlspecialchars($brand['name']) ?>
+                            </option>
                         <?php endforeach; ?>
                     </select>
                 </div>
@@ -607,7 +646,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_view'])) {
                     <select id="product-color" name="color" required>
                         <option value="" disabled selected>Выберите цвет</option>
                         <?php foreach ($colors as $color): ?>
-                            <option value="<?= htmlspecialchars($color['name']) ?>"><?= htmlspecialchars($color['name']) ?></option>
+                            <option value="<?= htmlspecialchars($color['name']) ?>" <?= isset($_POST['color']) && $_POST['color'] === $color['name'] ? 'selected' : '' ?>>
+                                <?= htmlspecialchars($color['name']) ?>
+                            </option>
                         <?php endforeach; ?>
                     </select>
                 </div>
@@ -617,7 +658,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_view'])) {
                     <select id="product-type" name="type" required>
                         <option value="" disabled selected>Выберите тип</option>
                         <?php foreach ($types as $type): ?>
-                            <option value="<?= htmlspecialchars($type['name']) ?>"><?= htmlspecialchars($type['name']) ?></option>
+                            <option value="<?= htmlspecialchars($type['name']) ?>" <?= isset($_POST['type']) && $_POST['type'] === $type['name'] ? 'selected' : '' ?>>
+                                <?= htmlspecialchars($type['name']) ?>
+                            </option>
                         <?php endforeach; ?>
                     </select>
                 </div>
@@ -627,7 +670,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_view'])) {
                     <select id="product-view" name="view" required>
                         <option value="" disabled selected>Выберите вид</option>
                         <?php foreach ($views as $view): ?>
-                            <option value="<?= htmlspecialchars($view['name']) ?>"><?= htmlspecialchars($view['name']) ?></option>
+                            <option value="<?= htmlspecialchars($view['name']) ?>" <?= isset($_POST['view']) && $_POST['view'] === $view['name'] ? 'selected' : '' ?>>
+                                <?= htmlspecialchars($view['name']) ?>
+                            </option>
                         <?php endforeach; ?>
                     </select>
                 </div>
@@ -636,32 +681,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_view'])) {
                     <label for="product-gender">Пол:</label>
                     <select id="product-gender" name="gender" required>
                         <option value="" disabled selected>Выберите пол</option>
-                        <option value="Мужской">Мужской</option>
-                        <option value="Женский">Женский</option>
-                        <option value="Унисекс">Унисекс</option>
+                        <option value="Мужской" <?= isset($_POST['gender']) && $_POST['gender'] === 'Мужской' ? 'selected' : '' ?>>Мужской</option>
+                        <option value="Женский" <?= isset($_POST['gender']) && $_POST['gender'] === 'Женский' ? 'selected' : '' ?>>Женский</option>
+                        <option value="Унисекс" <?= isset($_POST['gender']) && $_POST['gender'] === 'Унисекс' ? 'selected' : '' ?>>Унисекс</option>
                     </select>
                 </div>
 
                 <div class="form-group">
                     <label for="product-price">Цена (₽):</label>
-                    <input type="number" id="product-price" name="price" step="0.01" required>
+                    <input type="number" id="product-price" name="price" step="0.01" value="<?= htmlspecialchars($_POST['price'] ?? '') ?>" required>
                 </div>
 
                 <div class="form-group">
                     <label for="product-quantity">Количество на складе:</label>
-                    <input type="number" id="product-quantity" name="quantity" min="1" required>
+                    <input type="number" id="product-quantity" name="quantity" min="1" value="<?= htmlspecialchars($_POST['quantity'] ?? '') ?>" required>
                 </div>
 
                 <div class="form-group">
                     <label for="product-image">Изображение товара:</label>
                     <input type="file" id="product-image" name="image" accept="image/*" required class="file-input">
+                    <div class="image-preview" id="image-preview">
+                        <img id="preview-image" src="#" alt="Предпросмотр изображения">
+                    </div>
                 </div>
 
                 <button type="submit" class="submit-btn">Добавить товар</button>
             </form>
         </section>
 
-        <!-- Раздел "Добавление брендов" -->
+        <!-- Раздел добавления бренда -->
         <section id="add-brand" class="section">
             <h2>Добавить бренд</h2>
             <?php if (!empty($successBrand)): ?>
@@ -674,13 +722,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_view'])) {
                 <input type="hidden" name="add_brand">
                 <div class="form-group">
                     <label for="brand-name">Название бренда:</label>
-                    <input type="text" id="brand-name" name="brand_name" required>
+                    <input type="text" id="brand-name" name="brand_name" value="<?= htmlspecialchars($_POST['brand_name'] ?? '') ?>" required>
                 </div>
                 <button type="submit" class="submit-btn">Добавить бренд</button>
             </form>
         </section>
 
-        <!-- Раздел "Добавление цветов" -->
+        <!-- Раздел добавления цвета -->
         <section id="add-color" class="section">
             <h2>Добавить цвет</h2>
             <?php if (!empty($successColor)): ?>
@@ -693,13 +741,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_view'])) {
                 <input type="hidden" name="add_color">
                 <div class="form-group">
                     <label for="color-name">Название цвета:</label>
-                    <input type="text" id="color-name" name="color_name" required>
+                    <input type="text" id="color-name" name="color_name" value="<?= htmlspecialchars($_POST['color_name'] ?? '') ?>" required>
                 </div>
                 <button type="submit" class="submit-btn">Добавить цвет</button>
             </form>
         </section>
 
-        <!-- Раздел "Добавление типов" -->
+        <!-- Раздел добавления типа -->
         <section id="add-type" class="section">
             <h2>Добавить тип</h2>
             <?php if (!empty($successType)): ?>
@@ -712,13 +760,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_view'])) {
                 <input type="hidden" name="add_type">
                 <div class="form-group">
                     <label for="type-name">Название типа:</label>
-                    <input type="text" id="type-name" name="type_name" required>
+                    <input type="text" id="type-name" name="type_name" value="<?= htmlspecialchars($_POST['type_name'] ?? '') ?>" required>
                 </div>
                 <button type="submit" class="submit-btn">Добавить тип</button>
             </form>
         </section>
 
-        <!-- Раздел "Добавление видов" -->
+        <!-- Раздел добавления вида -->
         <section id="add-view" class="section">
             <h2>Добавить вид</h2>
             <?php if (!empty($successView)): ?>
@@ -731,7 +779,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_view'])) {
                 <input type="hidden" name="add_view">
                 <div class="form-group">
                     <label for="view-name">Название вида:</label>
-                    <input type="text" id="view-name" name="view_name" required>
+                    <input type="text" id="view-name" name="view_name" value="<?= htmlspecialchars($_POST['view_name'] ?? '') ?>" required>
                 </div>
                 <button type="submit" class="submit-btn">Добавить вид</button>
             </form>
@@ -762,17 +810,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_view'])) {
         });
     });
 
-    function logout() {
-        // Уничтожаем сессию
-        fetch('logout.php', { method: 'POST' })
-            .then(response => {
-                if (response.ok) {
-                    window.location.href = 'login.php';
-                } else {
-                    alert('Ошибка выхода');
-                }
-            });
-    }
+    // Предпросмотр изображения перед загрузкой
+    document.getElementById('product-image').addEventListener('change', function(event) {
+        const preview = document.getElementById('preview-image');
+        const previewContainer = document.getElementById('image-preview');
+
+        if (this.files && this.files[0]) {
+            const reader = new FileReader();
+
+            reader.onload = function(e) {
+                preview.src = e.target.result;
+                previewContainer.style.display = 'block';
+            }
+
+            reader.readAsDataURL(this.files[0]);
+        } else {
+            preview.src = '#';
+            previewContainer.style.display = 'none';
+        }
+    });
 </script>
 
 </body>

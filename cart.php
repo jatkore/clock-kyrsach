@@ -431,7 +431,7 @@ if (isset($_GET['logout'])) {
 </head>
 <body>
 <header>
-    <div class="logo">Watch <span>Store</span></div>
+    <a href="index.php" class="logo">Watch <span>Store</span></a>
     <nav>
         <a href="catalog.php">Каталог</a>
 

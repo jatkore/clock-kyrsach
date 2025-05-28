@@ -28,12 +28,16 @@ if (isset($_GET['logout'])) {
 // Получение 7 самых часто покупаемых товаров
 $popularProductsStmt = $pdo->query("
     SELECT p.id, p.name, p.brand_name, p.color_name, p.type_name, p.view_name, p.gender, p.price, p.image_path 
-    FROM Orders o 
-    JOIN Product p ON o.product_id = p.id 
-    GROUP BY p.id, p.name, p.brand_name, p.color_name, p.type_name, p.view_name, p.gender, p.price, p.image_path 
-    ORDER BY SUM(o.quantity) DESC 
+    FROM Product p
+    JOIN (
+        SELECT product_name, SUM(quantity) as total_quantity
+        FROM Orders
+        GROUP BY product_name
+    ) o ON p.name = o.product_name
+    ORDER BY o.total_quantity DESC 
     LIMIT 7
 ");
+$popularProducts = $popularProductsStmt->fetchAll(PDO::FETCH_ASSOC);
 $popularProducts = $popularProductsStmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Функция проверки наличия товара в корзине
@@ -607,7 +611,7 @@ if ($isAuthenticated) {
 </head>
 <body>
 <header>
-    <div class="logo">Watch  <span> store </span></div>
+    <a href="index.php" class="logo">Watch <span>Store</span></a>
     <nav>
         <a href="catalog.php">Каталог</a>
         <a href="#contacts">Контакты</a>

@@ -179,13 +179,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_to_cart']) && iss
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Каталог | Minimal Horizon</title>
+    <title>Каталог | Watch Store</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
         :root {
             --black: #111111;
             --white: #ffffff;
-            --gray: #000000;
+            --gray: #e0e0e0;
             --light-gray: #ffffff;
             --accent: #000000;
             --text-dark: #333333;
@@ -237,6 +237,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_to_cart']) && iss
         nav {
             display: flex;
             gap: 2rem;
+            margin-right: 1320px;
         }
 
         nav a {
@@ -632,12 +633,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_to_cart']) && iss
             padding: 3rem 5% 2rem;
         }
 
+        footer {
+            background-color: var(--black);
+            color: var(--white);
+            padding: 5rem 10% 2rem;
+        }
+
         .footer-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 3rem;
-            max-width: 1200px;
-            margin: 0 auto;
+            margin-bottom: 3rem;
         }
 
         .footer-logo {
@@ -734,11 +740,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_to_cart']) && iss
 </head>
 <body>
 <header>
-    <a href="index.php" class="logo">MINIMAL <span>HORIZON</span></a>
+    <a href="index.php" class="logo">Watch <span>Store</span></a>
     <nav>
-        <a href="catalog.php">Каталог</a>
-        <a href="#about">О нас</a>
-        <a href="#contacts">Контакты</a>
+
+        <a href="#contacts" class="nav">Контакты</a>
     </nav>
     <div class="header-actions">
         <?php if ($isAuthenticated): ?>
@@ -890,15 +895,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_to_cart']) && iss
 <footer>
     <div class="footer-grid">
         <div>
-            <div class="footer-logo">MINIMAL <span>HORIZON</span></div>
-            <p class="footer-text">
-                Элегантные часы для современного образа жизни. Безупречное качество и дизайн.
-            </p>
-            <div class="social-links">
-                <a href="#" class="social-link"><i class="fab fa-instagram"></i></a>
-                <a href="#" class="social-link"><i class="fab fa-facebook-f"></i></a>
-                <a href="#" class="social-link"><i class="fab fa-pinterest"></i></a>
-            </div>
+            <section id="contacts">
+                <div class="footer-logo">Watch store <span></span></div>
+                <p class="footer-text">
+                    Элегантные часы для современного образа жизни. Безупречное качество и дизайн.
+                </p>
+                <div class="social-links">
+                    <a href="#" class="social-link"><i class="fab fa-instagram"></i></a>
+                    <a href="#" class="social-link"><i class="fab fa-facebook-f"></i></a>
+                    <a href="#" class="social-link"><i class="fab fa-pinterest"></i></a>
+                </div>
+            </section>
         </div>
         <div>
             <h3>Магазин</h3>
@@ -910,23 +917,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_to_cart']) && iss
         </div>
         <div>
             <h3>Информация</h3>
-            <ul class="footer-links">
+            <ul  class="footer-links">
                 <li><a href="#">Доставка и оплата</a></li>
-                <li><a href="#">Гарантия</a></li>
-                <li><a href="#">Возврат</a></li>
+                <li><a href="#garant">Гарантия</a></li>
+
             </ul>
         </div>
         <div>
             <h3>Контакты</h3>
             <ul class="footer-links">
-                <li>Москва, ул. Часовая, д. 5</li>
-                <li>+7 (999) 123-45-67</li>
+                <li>Москва, ул. Часовая, д. 88</li>
+                <li>+7 (999) 999-99-99</li>
                 <li>info@watchstore.ru</li>
             </ul>
         </div>
     </div>
     <div class="footer-bottom">
-        © 2023 Minimal Horizon. Все права защищены.
+
     </div>
 </footer>
 

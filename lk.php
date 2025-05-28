@@ -90,6 +90,23 @@ try {
         $cartCount = $stmt->fetchColumn() ?? 0;
     }
 
+    $stmt = $pdo->prepare("
+    SELECT 
+        id AS order_id,
+        order_date,
+        quantity AS order_quantity,
+        total_price,
+        product_name,
+        product_brand,
+        product_color,
+        product_image
+    FROM Orders
+    WHERE user_id = ?
+    ORDER BY order_date DESC
+");
+    $stmt->execute([$_SESSION['user_id']]);
+    $orders = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
 } catch (PDOException $e) {
     die("Ошибка подключения к базе данных: " . $e->getMessage());
 }
@@ -127,6 +144,78 @@ try {
             background-color: var(--white);
             line-height: 1.6;
             -webkit-font-smoothing: antialiased;
+        }
+
+
+        /* Заказы */
+        .orders-list {
+            margin-top: 2rem;
+        }
+
+        .order-card {
+            border: 1px solid var(--gray);
+            border-radius: 4px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .order-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--gray);
+        }
+
+        .order-date {
+            color: var(--text-light);
+            font-size: 0.9rem;
+        }
+
+        .order-item {
+            display: flex;
+            align-items: center;
+            padding: 1rem 0;
+        }
+
+        .item-image {
+            width: 60px;
+            height: 60px;
+            object-fit: cover;
+            margin-right: 1rem;
+            border-radius: 4px;
+        }
+
+        .item-details {
+            flex-grow: 1;
+        }
+
+        .item-name {
+            font-weight: 500;
+            margin-bottom: 0.3rem;
+        }
+
+        .item-quantity {
+            color: var(--text-light);
+            font-size: 0.9rem;
+        }
+
+        .item-brand {
+            font-size: 0.8rem;
+            color: var(--text-light);
+            margin-bottom: 0.2rem;
+        }
+
+        .item-price {
+            font-weight: bold;
+            margin: 0.3rem 0;
+            color: var(--black);
+        }
+
+        .no-orders {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-light);
         }
 
         /* Шапка */
@@ -423,6 +512,18 @@ try {
             color: var(--text-dark);
         }
 
+        .upload-button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            font-size: 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-left: 15px;
+            transition: background-color 0.3s;
+        }
+
         /* Редактируемые поля */
         .view-mode {
             display: block;
@@ -465,7 +566,7 @@ try {
 <body>
 
 <header>
-    <div class="logo">Watch <span>Store</span></div>
+    <a href="index.php" class="logo">Watch <span>Store</span></a>
     <nav>
         <a href="catalog.php">Каталог</a>
     </nav>
@@ -548,7 +649,45 @@ try {
         <!-- Раздел "Мои заказы" -->
         <section id="orders" class="section">
             <h2>Мои заказы</h2>
-            <p>На данный момент список ваших заказов пуст.</p>
+
+            <?php if (empty($orders)): ?>
+                <div class="no-orders">
+                    <p>У вас пока нет заказов.</p>
+                    <a href="catalog.php" class="submit-btn" style="display: inline-block; margin-top: 1rem;">Перейти в каталог</a>
+                </div>
+            <?php else: ?>
+                <div class="orders-list">
+                    <?php foreach ($orders as $order): ?>
+                        <div class="order-card">
+                            <div class="order-header">
+                        <span class="order-date">
+                            <?= date('d.m.Y', strtotime($order['order_date'])) ?>
+                        </span>
+                            </div>
+
+                            <div class="order-item">
+                                <?php
+                                // Полный путь к изображению
+                                $imagePath = !empty($order['product_image']) ? $order['product_image'] : 'https://via.placeholder.com/100x100';
+
+                                // Проверяем, есть ли уже префикс 'uploads/'
+                                if (!empty($order['product_image']) && strpos($order['product_image'], 'uploads/') === false) {
+                                    $imagePath = 'uploads/' . $order['product_image'];
+                                }
+                                ?>
+                                <img src="<?= htmlspecialchars($imagePath) ?>"
+                                     alt="<?= htmlspecialchars($order['product_name']) ?>"
+                                     class="item-image"
+                                     onerror="this.src='https://via.placeholder.com/100x100'">
+                                <div class="item-details">
+                                    <div class="item-name"><?= htmlspecialchars($order['product_name']) ?></div>
+                                    <div class="item-quantity">Количество: <?= htmlspecialchars($order['order_quantity']) ?></div>
+                                </div>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            <?php endif; ?>
         </section>
     </div>
 </div>
