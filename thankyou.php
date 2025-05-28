@@ -38,7 +38,7 @@ if (isset($_GET['logout'])) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Спасибо за заказ | Minimal Horizon</title>
+    <title>Спасибо за заказ | Watch Store</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
         :root {
@@ -335,7 +335,7 @@ if (isset($_GET['logout'])) {
 </head>
 <body>
 <header>
-    <div class="logo">MINIMAL <span>HORIZON</span></div>
+    <a href="index.php" class="logo">Watch <span>Store</span></a>
 
     <div class="header-actions">
         <?php if ($isAuthenticated): ?>
@@ -362,7 +362,7 @@ if (isset($_GET['logout'])) {
     <h1 class="thank-you-title">Спасибо за ваш заказ!</h1>
     <p class="thank-you-text">
         Ваш заказ успешно оформлен и передан в обработку. В ближайшее время с вами свяжется наш менеджер для подтверждения заказа.<br>
-        Номер вашего заказа: #<?= rand(100000, 999999) ?>
+
     </p>
 
     <div class="action-buttons">
