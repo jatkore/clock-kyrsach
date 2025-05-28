@@ -253,6 +253,21 @@ if ($isAuthenticated) {
             filter: drop-shadow(0 20px 30px rgba(0, 0, 0, 0.1));
         }
 
+        a.back-link {
+            display: block;
+            text-align: left;
+            margin-top: 1rem;
+            color: var(--text-light);
+            font-size: 0.9rem;
+            text-decoration: none;
+            transition: var(--transition);
+        }
+
+        a.back-link:hover {
+            color: var(--black);
+        }
+
+
         /* Коллекция */
         .collection {
             padding: 6rem 10%;
@@ -751,6 +766,7 @@ if ($isAuthenticated) {
                 <div class="form-group">
                     <label for="password">Пароль:</label>
                     <input type="password" id="password" name="password" required>
+                    <a href="register.php" class="back-link">Зарегистрироваться</a>
                 </div>
                 <p class="error-message" id="error-message">
                     <?php

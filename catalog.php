@@ -304,6 +304,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_to_cart']) && iss
             justify-content: center;
         }
 
+        a.back-link {
+            display: block;
+            text-align: left;
+            margin-top: 1rem;
+            color: var(--text-light);
+            font-size: 0.9rem;
+            text-decoration: none;
+            transition: var(--transition);
+        }
+
+        a.back-link:hover {
+            color: var(--black);
+        }
+
         /* Основное содержимое */
         .main-content {
             padding-top: 80px;
@@ -954,6 +968,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_to_cart']) && iss
                 <div class="form-group">
                     <label for="password">Пароль:</label>
                     <input type="password" id="password" name="password" required>
+                    <a href="register.php" class="back-link">Зарегистрироваться</a>
                 </div>
                 <p class="error-message" id="error-message">
                     <?php

@@ -64,7 +64,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             --gray: #e0e0e0;
             --light-gray: #f5f5f5;
             --accent: #000000;
-            --text-dark: #96ff61;
+            --text-dark: #333333;
             --text-light: #777777;
             --transition: all 0.3s cubic-bezier(0.25, 0.1, 0.25, 1);
             --error: #e74c3c;
