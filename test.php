@@ -1,9 +1,66 @@
+<?php
+// Старт сессии должен быть в самом начале файла, до любого вывода
+session_start();
+
+// Подключение к базе данных
+$host = 'mysql';
+$dbname = 'appliance_store';
+$username = 'root';
+$password = 'root';
+try {
+    $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8", $username, $password);
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+} catch (PDOException $e) {
+    die("Ошибка подключения к базе данных: " . $e->getMessage());
+}
+
+// Проверка авторизации
+$isAuthenticated = isset($_SESSION['user_id']);
+
+// Обработка выхода из системы
+if (isset($_GET['logout'])) {
+    session_unset();
+    session_destroy();
+    header("Location: index.php");
+    exit();
+}
+
+// Получение 7 самых часто покупаемых товаров
+$popularProductsStmt = $pdo->query("
+    SELECT p.id, p.name, p.brand_name, p.category_name, p.type_name, p.features, p.price, p.image_path 
+    FROM Product p
+    JOIN (
+        SELECT product_name, SUM(quantity) as total_quantity
+        FROM Orders
+        GROUP BY product_name
+    ) o ON p.name = o.product_name
+    ORDER BY o.total_quantity DESC 
+    LIMIT 7
+");
+$popularProducts = $popularProductsStmt->fetchAll(PDO::FETCH_ASSOC);
+
+// Функция проверки наличия товара в корзине
+function isProductInCart($pdo, $userId, $productId) {
+    if (!$userId) return false;
+    $stmt = $pdo->prepare("SELECT COUNT(*) AS count FROM cart WHERE user_id = ? AND product_id = ?");
+    $stmt->execute([$userId, $productId]);
+    return $stmt->fetchColumn() > 0;
+}
+
+// Получение количества товаров в корзине
+$cartCount = 0;
+if ($isAuthenticated) {
+    $stmt = $pdo->prepare("SELECT SUM(quantity) FROM cart WHERE user_id = ?");
+    $stmt->execute([$_SESSION['user_id']]);
+    $cartCount = $stmt->fetchColumn() ?? 0;
+}
+?>
 <!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Minimal Horizon | Утончённые часы</title>
+    <title>TechHome | Магазин бытовой техники</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
         :root {
@@ -11,10 +68,11 @@
             --white: #ffffff;
             --gray: #e0e0e0;
             --light-gray: #f5f5f5;
-            --accent: #000000; /* Чёрный как акцент */
+            --accent: #0066cc;
             --text-dark: #333333;
             --text-light: #777777;
             --transition: all 0.3s cubic-bezier(0.25, 0.1, 0.25, 1);
+            --error: #e74c3c;
         }
 
         * {
@@ -50,7 +108,7 @@
             font-size: 1.5rem;
             font-weight: 300;
             letter-spacing: 2px;
-            color: var(--black);
+            color: var(--accent);
         }
 
         .logo span {
@@ -60,6 +118,7 @@
         nav {
             display: flex;
             gap: 2rem;
+            margin-right: 1200px;
         }
 
         nav a {
@@ -73,7 +132,7 @@
         }
 
         nav a:hover {
-            color: var(--black);
+            color: var(--accent);
         }
 
         nav a::after {
@@ -83,7 +142,7 @@
             left: 0;
             width: 0;
             height: 1px;
-            background: var(--black);
+            background: var(--accent);
             transition: var(--transition);
         }
 
@@ -91,9 +150,10 @@
             width: 100%;
         }
 
-        .header-icons {
+        .header-actions {
             display: flex;
             gap: 1.5rem;
+            align-items: center;
         }
 
         .icon-btn {
@@ -106,8 +166,23 @@
         }
 
         .icon-btn:hover {
-            color: var(--black);
+            color: var(--accent);
             transform: translateY(-2px);
+        }
+
+        .cart-count {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            background-color: var(--accent);
+            color: var(--white);
+            border-radius: 50%;
+            width: 18px;
+            height: 18px;
+            font-size: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
         /* Герой-секция */
@@ -119,6 +194,7 @@
             background-color: var(--light-gray);
             position: relative;
             overflow: hidden;
+            margin-top: 80px;
         }
 
         .hero-content {
@@ -135,7 +211,7 @@
 
         .hero-title span {
             font-weight: 400;
-            border-bottom: 2px solid var(--black);
+            border-bottom: 2px solid var(--accent);
         }
 
         .hero-text {
@@ -145,7 +221,7 @@
         }
 
         .hero-btn {
-            background: var(--black);
+            background: var(--accent);
             color: var(--white);
             border: none;
             padding: 1rem 2rem;
@@ -160,7 +236,7 @@
         }
 
         .hero-btn:hover {
-            background: #333333;
+            background: #0055aa;
             transform: translateY(-3px);
         }
 
@@ -169,9 +245,23 @@
             right: 10%;
             top: 50%;
             transform: translateY(-50%);
-            width: 40%;
-            max-width: 600px;
+            width: 50%;
+            max-width: 700px;
             filter: drop-shadow(0 20px 30px rgba(0, 0, 0, 0.1));
+        }
+
+        a.back-link {
+            display: block;
+            text-align: left;
+            margin-top: 1rem;
+            color: var(--text-light);
+            font-size: 0.9rem;
+            text-decoration: none;
+            transition: var(--transition);
+        }
+
+        a.back-link:hover {
+            color: var(--accent);
         }
 
         /* Коллекция */
@@ -202,7 +292,7 @@
         }
 
         .section-link:hover {
-            color: var(--black);
+            color: var(--accent);
         }
 
         .products-grid {
@@ -215,17 +305,21 @@
             position: relative;
             overflow: hidden;
             transition: var(--transition);
+            border: 1px solid var(--gray);
+            border-radius: 8px;
+            padding: 15px;
         }
 
         .product-image {
             width: 100%;
-            height: 350px;
+            height: 250px;
             background-color: var(--light-gray);
             display: flex;
             align-items: center;
             justify-content: center;
             margin-bottom: 1.5rem;
             transition: var(--transition);
+            border-radius: 4px;
         }
 
         .product-image img {
@@ -258,11 +352,107 @@
             font-size: 1.1rem;
             font-weight: 400;
             margin-bottom: 0.5rem;
+            min-height: 50px;
+        }
+
+        .product-features {
+            font-size: 0.8rem;
+            color: var(--text-light);
+            margin-bottom: 1rem;
+            text-align: left;
         }
 
         .product-price {
-            font-size: 1rem;
+            font-size: 1.2rem;
             font-weight: 500;
+            margin-bottom: 1rem;
+            color: var(--accent);
+        }
+
+        .add-to-cart {
+            background: var(--accent);
+            color: var(--white);
+            border: none;
+            padding: 0.8rem;
+            width: 100%;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: var(--transition);
+            border-radius: 4px;
+        }
+
+        .add-to-cart:hover {
+            background: #0055aa;
+        }
+
+        .add-to-cart:disabled {
+            background: var(--gray);
+            cursor: not-allowed;
+        }
+
+        /* Категории */
+        .categories {
+            padding: 4rem 10%;
+            background-color: var(--light-gray);
+        }
+
+        .categories-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1.5rem;
+            margin-top: 2rem;
+        }
+
+        .category-card {
+            background: var(--white);
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+            transition: var(--transition);
+        }
+
+        .category-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .category-image {
+            height: 150px;
+            background-color: var(--gray);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .category-image img {
+            max-width: 80%;
+            max-height: 80%;
+            object-fit: contain;
+        }
+
+        .category-name {
+            padding: 1rem;
+            text-align: center;
+            font-weight: 500;
+        }
+
+        /* Информационные секции */
+        .info-section {
+            padding: 5rem 10%;
+            background-color: var(--white);
+            text-align: center;
+        }
+
+        .info-section h2 {
+            font-size: 1.8rem;
+            font-weight: 300;
+            margin-bottom: 2rem;
+        }
+
+        .info-section p {
+            max-width: 800px;
+            margin: 0 auto 1.5rem;
+            color: var(--text-light);
         }
 
         /* Подвал */
@@ -284,6 +474,7 @@
             font-weight: 300;
             letter-spacing: 2px;
             margin-bottom: 1rem;
+            color: var(--white);
         }
 
         .footer-logo span {
@@ -316,6 +507,7 @@
             font-weight: 500;
             margin-bottom: 1.5rem;
             letter-spacing: 1px;
+            color: var(--white);
         }
 
         .footer-links {
@@ -345,11 +537,122 @@
             font-size: 0.8rem;
         }
 
+        /* Модальное окно */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+        }
+
+        .modal-content {
+            background-color: var(--white);
+            width: 100%;
+            max-width: 400px;
+            border-radius: 4px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        .modal-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--gray);
+            position: relative;
+        }
+
+        .modal-title {
+            font-size: 1.2rem;
+            font-weight: 500;
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 1.5rem;
+            right: 1.5rem;
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: var(--text-light);
+        }
+
+        .modal-body {
+            padding: 1.5rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+            color: var(--text-dark);
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 0.8rem;
+            border: 1px solid var(--gray);
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        .modal-footer {
+            padding: 1.5rem;
+            border-top: 1px solid var(--gray);
+            display: flex;
+            justify-content: flex-end;
+            gap: 1rem;
+        }
+
+        .modal-btn {
+            padding: 0.8rem 1.5rem;
+            border: none;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .modal-btn.primary {
+            background: var(--accent);
+            color: var(--white);
+        }
+
+        .modal-btn.secondary {
+            background: var(--white);
+            color: var(--text-dark);
+            border: 1px solid var(--gray);
+        }
+
+        .error-message {
+            color: var(--error);
+            font-size: 0.8rem;
+            margin-top: 0.5rem;
+            text-align: center;
+        }
+
         /* Адаптивность */
         @media (max-width: 1024px) {
             .hero-image {
                 opacity: 0.5;
                 right: 5%;
+            }
+
+            .categories-grid {
+                grid-template-columns: repeat(2, 1fr);
             }
         }
 
@@ -379,127 +682,241 @@
                 margin-top: 2rem;
                 opacity: 1;
             }
+
+            .categories-grid {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
 <body>
 <header>
-    <div class="logo">MINIMAL <span>HORIZON</span></div>
+    <a href="index.php" class="logo">Tech<span>Home</span></a>
     <nav>
-        <a href="#">Каталог</a>
-        <a href="#">Коллекции</a>
-        <a href="#">О бренде</a>
-        <a href="#">Контакты</a>
+        <a href="catalog.php">Каталог</a>
+        <a href="#categories">Категории</a>
+        <a href="#contacts">Контакты</a>
     </nav>
-    <div class="header-icons">
-        <button class="icon-btn"><i class="fas fa-search"></i></button>
-        <button class="icon-btn"><i class="far fa-user"></i></button>
-        <button class="icon-btn"><i class="fas fa-shopping-bag"></i></button>
+    <div class="header-actions">
+        <?php if ($isAuthenticated): ?>
+            <div style="position: relative;">
+                <button class="icon-btn" onclick="location.href='cart.php'">
+                    <i class="fas fa-shopping-cart"></i>
+                    <?php if ($cartCount > 0): ?>
+                        <span class="cart-count"><?= $cartCount ?></span>
+                    <?php endif; ?>
+                </button>
+            </div>
+            <button class="icon-btn" onclick="location.href='lk.php'"><i class="far fa-user"></i></button>
+            <button class="icon-btn" onclick="location.href='?logout=1'"><i class="fas fa-sign-out-alt"></i></button>
+        <?php else: ?>
+            <button class="icon-btn" id="loginButton"><i class="far fa-user"></i></button>
+        <?php endif; ?>
     </div>
 </header>
 
-<section class="hero">
+<section id="about" class="hero">
     <div class="hero-content">
-        <h1 class="hero-title">Утончённость <span>в каждой детали</span></h1>
+        <h1 class="hero-title">Современная техника <span>для вашего дома</span></h1>
         <p class="hero-text">
-            Часы Minimal Horizon — это сочетание безупречного дизайна и высокого качества.
-            Каждая модель создана для тех, кто ценит элегантность и функциональность.
+            TechHome предлагает широкий ассортимент бытовой техники от ведущих мировых производителей.
+            Качество, надежность и инновационные технологии для вашего комфорта.
         </p>
-        <button class="hero-btn">
-            <span>Исследовать коллекцию</span>
+        <button class="hero-btn" onclick="location.href='catalog.php'">
+            <span>Полный ассортимент</span>
             <i class="fas fa-arrow-right"></i>
         </button>
     </div>
     <div class="hero-image">
-        <img src="https://via.placeholder.com/800x800" alt="Minimal Watch">
+        <img src="https://images.unsplash.com/photo-1556740738-b6a63e27c4df?ixlib=rb-1.2.1&auto=format&fit=crop&w=1000&q=80" alt="Бытовая техника">
     </div>
 </section>
 
 <section class="collection">
     <div class="section-header">
-        <h2 class="section-title">Новая коллекция</h2>
-        <a href="#" class="section-link">
+        <h2 class="section-title">Популярные товары</h2>
+        <a href="catalog.php" class="section-link">
             <span>Смотреть все</span>
             <i class="fas fa-arrow-right"></i>
         </a>
     </div>
     <div class="products-grid">
-        <div class="product-card">
-            <div class="product-image">
-                <img src="https://via.placeholder.com/500x500" alt="Watch Model 1">
+        <?php if (!empty($popularProducts)): ?>
+            <?php foreach ($popularProducts as $product): ?>
+                <div class="product-card">
+                    <div class="product-image">
+                        <img src="uploads/<?= htmlspecialchars($product['image_path']) ?>" alt="<?= htmlspecialchars($product['name']) ?>">
+                    </div>
+                    <div class="product-info">
+                        <p class="product-brand"><?= htmlspecialchars($product['brand_name']) ?></p>
+                        <h3 class="product-name"><?= htmlspecialchars($product['name']) ?></h3>
+                        <p class="product-features"><?= htmlspecialchars($product['features']) ?></p>
+                        <p class="product-price"><?= number_format($product['price'], 0, '.', ' ') ?> ₽</p>
+                        <form method="POST" action="add_to_cart.php" onsubmit="return checkLogin(this)">
+                            <input type="hidden" name="product_id" value="<?= $product['id'] ?>">
+                            <button type="submit" class="add-to-cart"
+                                <?= isProductInCart($pdo, $_SESSION['user_id'] ?? null, $product['id']) ? 'disabled' : '' ?>>
+                                <?= isProductInCart($pdo, $_SESSION['user_id'] ?? null, $product['id']) ? 'В корзине' : 'Добавить в корзину' ?>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            <?php endforeach; ?>
+        <?php else: ?>
+            <p style="grid-column: 1 / -1; text-align: center;">Товары пока не добавлены</p>
+        <?php endif; ?>
+    </div>
+</section>
+
+<section id="categories" class="categories">
+    <h2 class="section-title" style="text-align: center;">Категории</h2>
+    <div class="categories-grid">
+        <div class="category-card">
+            <div class="category-image">
+                <img src="https://cdn-icons-png.flaticon.com/512/3659/3659898.png" alt="Крупная техника">
             </div>
-            <div class="product-info">
-                <p class="product-brand">MINIMAL HORIZON</p>
-                <h3 class="product-name">Classic Black</h3>
-                <p class="product-price">24 900 ₽</p>
-            </div>
+            <div class="category-name">Крупная техника</div>
         </div>
-        <div class="product-card">
-            <div class="product-image">
-                <img src="https://via.placeholder.com/500x500" alt="Watch Model 2">
+        <div class="category-card">
+            <div class="category-image">
+                <img src="https://cdn-icons-png.flaticon.com/512/3097/3097006.png" alt="Кухонная техника">
             </div>
-            <div class="product-info">
-                <p class="product-brand">MINIMAL HORIZON</p>
-                <h3 class="product-name">Modern Silver</h3>
-                <p class="product-price">27 500 ₽</p>
-            </div>
+            <div class="category-name">Кухонная техника</div>
         </div>
-        <div class="product-card">
-            <div class="product-image">
-                <img src="https://via.placeholder.com/500x500" alt="Watch Model 3">
+        <div class="category-card">
+            <div class="category-image">
+                <img src="https://cdn-icons-png.flaticon.com/512/2933/2933245.png" alt="Климатическая техника">
             </div>
-            <div class="product-info">
-                <p class="product-brand">MINIMAL HORIZON</p>
-                <h3 class="product-name">Slim White</h3>
-                <p class="product-price">22 300 ₽</p>
+            <div class="category-name">Климатическая техника</div>
+        </div>
+        <div class="category-card">
+            <div class="category-image">
+                <img src="https://cdn-icons-png.flaticon.com/512/3194/3194834.png" alt="Техника для дома">
             </div>
+            <div class="category-name">Техника для дома</div>
         </div>
     </div>
+</section>
+
+<section class="info-section">
+    <h2>Почему выбирают нас?</h2>
+    <p>Мы предлагаем только качественную технику от проверенных производителей с официальной гарантией.</p>
+    <p>Быстрая доставка по всей России и удобные способы оплаты.</p>
+    <p>Профессиональные консультации и сервисное обслуживание.</p>
 </section>
 
 <footer>
     <div class="footer-grid">
         <div>
-            <div class="footer-logo">MINIMAL <span>HORIZON</span></div>
-            <p class="footer-text">
-                Элегантные часы для современного образа жизни. Безупречное качество и дизайн.
-            </p>
-            <div class="social-links">
-                <a href="#" class="social-link"><i class="fab fa-instagram"></i></a>
-                <a href="#" class="social-link"><i class="fab fa-facebook-f"></i></a>
-                <a href="#" class="social-link"><i class="fab fa-pinterest"></i></a>
-            </div>
+            <section id="contacts">
+                <div class="footer-logo">Tech<span>Home</span></div>
+                <p class="footer-text">
+                    Магазин современной бытовой техники для вашего дома. Широкий ассортимент, гарантия качества и лучшие цены.
+                </p>
+                <div class="social-links">
+                    <a href="#" class="social-link"><i class="fab fa-instagram"></i></a>
+                    <a href="#" class="social-link"><i class="fab fa-facebook-f"></i></a>
+                    <a href="#" class="social-link"><i class="fab fa-vk"></i></a>
+                </div>
+            </section>
         </div>
         <div>
             <h3>Магазин</h3>
             <ul class="footer-links">
-                <li><a href="#">Каталог</a></li>
-                <li><a href="#">Коллекции</a></li>
-                <li><a href="#">Новинки</a></li>
-                <li><a href="#">Распродажа</a></li>
+                <li><a href="catalog.php">Каталог</a></li>
+                <li><a href="#categories">Категории</a></li>
+                <li><a href="#about">О нас</a></li>
+                <li><a href="#contacts">Контакты</a></li>
             </ul>
         </div>
         <div>
             <h3>Информация</h3>
             <ul class="footer-links">
-                <li><a href="#">О бренде</a></li>
                 <li><a href="#">Доставка и оплата</a></li>
                 <li><a href="#">Гарантия</a></li>
-                <li><a href="#">Контакты</a></li>
+                <li><a href="#">Кредит</a></li>
+                <li><a href="#">Сервисные центры</a></li>
             </ul>
         </div>
         <div>
             <h3>Контакты</h3>
             <ul class="footer-links">
-                <li><a href="#">Москва, ул. Тверская, 18</a></li>
-                <li><a href="#">+7 (495) 123-45-67</a></li>
-                <li><a href="#">info@minimalhorizon.ru</a></li>
+                <li>Москва, ул. Техническая, д. 15</li>
+                <li>+7 (800) 555-35-35</li>
+                <li>info@techhome.ru</li>
+                <li>Ежедневно с 9:00 до 21:00</li>
             </ul>
         </div>
     </div>
     <div class="footer-bottom">
-        © 2023 Minimal Horizon. Все права защищены.
+        © 2023 TechHome. Все права защищены.
     </div>
 </footer>
+
+<!-- Модальное окно для авторизации -->
+<div id="loginModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 class="modal-title">Авторизация</h3>
+            <button class="modal-close" onclick="closeLoginModal()">×</button>
+        </div>
+        <form method="POST" action="login.php" id="login-form">
+            <input type="hidden" name="redirect" value="index.php">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="email">Email:</label>
+                    <input type="email" id="email" name="email" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Пароль:</label>
+                    <input type="password" id="password" name="password" required>
+                    <a href="register.php" class="back-link">Зарегистрироваться</a>
+                </div>
+                <p class="error-message" id="error-message">
+                    <?php
+                    // Вывод ошибки авторизации, если она есть
+                    if (isset($_SESSION['login_error'])) {
+                        echo $_SESSION['login_error'];
+                        unset($_SESSION['login_error']);
+                    }
+                    ?>
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="modal-btn secondary" onclick="closeLoginModal()">Закрыть</button>
+                <button type="submit" class="modal-btn primary">Войти</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    // Показать модальное окно
+    document.getElementById('loginButton')?.addEventListener('click', function() {
+        document.getElementById('loginModal').style.display = 'flex';
+    });
+
+    // Закрыть модальное окно
+    function closeLoginModal() {
+        document.getElementById('loginModal').style.display = 'none';
+    }
+
+    // Проверка авторизации перед добавлением товара в корзину
+    function checkLogin(form) {
+        <?php if (!$isAuthenticated): ?>
+        alert('Для добавления товара в корзину необходимо авторизоваться.');
+        document.getElementById('loginModal').style.display = 'flex';
+        return false;
+        <?php endif; ?>
+        return true;
+    }
+
+    // Закрыть модальное окно при клике вне его
+    window.addEventListener('click', function(event) {
+        if (event.target === document.getElementById('loginModal')) {
+            closeLoginModal();
+        }
+    });
+</script>
 </body>
 </html>
